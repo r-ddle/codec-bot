@@ -128,7 +128,9 @@ class MessageEvents(commands.Cog):
                     )
 
                     await message.channel.send(embed=embed)
-                    await self.bot.member_data.save_data_async(force=True)
+                    # Schedule a background save; avoid forcing Neon sync on the event loop
+                    self.bot.member_data.schedule_save()
+                    asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
                     logger.info(f"PROMOTION: {message.author.name} promoted from {old_rank} to {new_rank}")
 

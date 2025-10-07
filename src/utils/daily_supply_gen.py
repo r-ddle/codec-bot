@@ -100,6 +100,38 @@ def load_font(size, font_type="text"):
 
     return ImageFont.load_default()
 
+
+# === SAFE TEXT RENDERER WITH FALLBACK ===
+def safe_draw_text(draw, xy, text, primary_font, fallback_font=None, fill=(255,255,255)):
+    """
+    Draw text character-by-character using primary_font when possible,
+    otherwise draw individual characters with fallback_font.
+
+    This avoids missing-glyph boxes when the primary custom font lacks
+    certain Unicode glyphs. Uses the 'text' system font as fallback.
+    """
+    if not text:
+        return
+
+    if fallback_font is None:
+        fallback_font = load_font(getattr(primary_font, 'size', 18), 'text')
+
+    x, y = xy
+    for ch in text:
+        try:
+            # attempt to access mask for glyph; raises if glyph missing
+            primary_font.getmask(ch)
+            draw.text((x, y), ch, font=primary_font, fill=fill)
+            bbox = draw.textbbox((0, 0), ch, font=primary_font)
+            w = bbox[2] - bbox[0]
+        except Exception:
+            draw.text((x, y), ch, font=fallback_font, fill=fill)
+            bbox = draw.textbbox((0, 0), ch, font=fallback_font)
+            w = bbox[2] - bbox[0]
+
+        x += max(1, w)
+
+
 # === CRT EFFECTS ===
 def add_scanlines(img, spacing=3):
     """Adds horizontal scanlines for CRT effect"""
@@ -390,16 +422,16 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
     username = sanitize_username(username)
 
     # Optimized dimensions for better spacing
-    width, height = 1000, 600
+    width, height = 1000, 700
 
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
 
     # Load fonts
-    font_title = load_font(42, "title")
-    font_large = load_font(38, "numbers")
-    font_medium = load_font(26, "text")
-    font_normal = load_font(22, "text")
+    font_title = load_font(52, "title")
+    font_large = load_font(48, "numbers")
+    font_medium = load_font(36, "numbers")
+    font_normal = load_font(32, "text")
     font_small = load_font(18, "text")
 
     # === HEADER SECTION ===
@@ -436,13 +468,13 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
 
     # Milestone badge
     if streak_days >= 100:
-        badge_text = "🏆 LEGENDARY"
+        badge_text = "LEGENDARY"
     elif streak_days >= 30:
-        badge_text = "⭐ ELITE"
+        badge_text = "ELITE"
     elif streak_days >= 7:
-        badge_text = "🔥 HOT STREAK"
+        badge_text = "HOT STREAK"
     else:
-        badge_text = "✓ ACTIVE"
+        badge_text = "ACTIVE"
 
     draw.text((fire_x + num_fires * 35 + 280, fire_y + 5), badge_text,
              fill=streak_color, font=font_normal)
@@ -653,7 +685,7 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp,
     """
     username = sanitize_username(username)
 
-    width, height = 1000, 550
+    width, height = 1000, 650
 
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)

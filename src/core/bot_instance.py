@@ -108,7 +108,8 @@ class MGSBot(commands.Bot):
     @tasks.loop(hours=BACKUP_INTERVAL // 60)
     async def backup_data(self):
         """Periodic data backup."""
-        await self.member_data.save_data_async()
+        # Force Neon sync during periodic backups
+        await self.member_data.save_data_async(force=True)
 
     @tasks.loop(minutes=AUTO_SAVE_INTERVAL)
     async def auto_save_data(self):

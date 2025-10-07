@@ -36,6 +36,10 @@ VOICE_TRACK_INTERVAL: int = 10
 BACKUP_INTERVAL: int = 720  # 12 hours
 AUTO_SAVE_INTERVAL: int = 5
 
+# Neon/Postgres sync interval (minutes) - controls how often we push the JSON -> Neon
+# Setting this to a larger value (e.g., 60) will reduce Neon API/database requests
+NEON_SYNC_INTERVAL_MINUTES: int = 60
+
 # Bot Version Tracking
 BOT_VERSION: str = "2.0.0-alpha"
 MIGRATION_VERSION: int = 1

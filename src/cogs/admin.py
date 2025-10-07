@@ -61,13 +61,17 @@ class Admin(commands.Cog):
             role_updated = await update_member_roles(member, next_rank["name"])
             role_granted = next_rank["role_name"] if role_updated else None
 
-            # Save the test changes
-            await self.bot.member_data.save_data_async(force=True)
+            # Save the test changes locally and schedule a background Neon sync (non-blocking)
+            self.bot.member_data.schedule_save()
+            # Kick off a background save (non-blocking) but do not force Neon sync here
+            asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
             # Generate beautiful promotion image (simulates daily bonus with promotion)
             async with ctx.typing():
                 try:
-                    img = generate_daily_supply_card(
+                    # Run CPU-bound Pillow generation off the event loop
+                    img = await asyncio.to_thread(
+                        generate_daily_supply_card,
                         username=member.display_name,
                         gmp_reward=200,  # Simulated daily reward
                         xp_reward=50,    # Simulated daily reward
@@ -80,9 +84,9 @@ class Admin(commands.Cog):
                         role_granted=role_granted
                     )
 
-                    # Convert to Discord file
+                    # Convert to Discord file (do this quickly in thread as well)
                     image_bytes = BytesIO()
-                    img.save(image_bytes, format='PNG')
+                    await asyncio.to_thread(img.save, image_bytes, format='PNG')
                     image_bytes.seek(0)
 
                     file = discord.File(fp=image_bytes, filename="test_promotion.png")
@@ -188,8 +192,9 @@ class Admin(commands.Cog):
                 except Exception as e:
                     logger.error(f"Error processing {member.name}: {e}")
 
-            # Save database changes
-            await self.bot.member_data.save_data_async(force=True)
+            # Save database changes (schedule background Neon sync to avoid blocking)
+            self.bot.member_data.schedule_save()
+            asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
             embed = discord.Embed(
                 title=" AUTO-PROMOTION COMPLETE",
@@ -637,8 +642,9 @@ Lieutenant: 750 XP
             # Reset last daily timestamp
             member_data['last_daily'] = None
 
-            # Force immediate save
-            await self.bot.member_data.save_data_async(force=True)
+            # Save locally and schedule a background Neon sync (non-blocking)
+            self.bot.member_data.schedule_save()
+            asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
             current_streak = member_data.get('daily_streak', 0)
 
@@ -737,8 +743,9 @@ Lieutenant: 750 XP
             # Set streak
             member_data['daily_streak'] = days
 
-            # Force immediate save
-            await self.bot.member_data.save_data_async(force=True)
+            # Save locally and schedule a background Neon sync (non-blocking)
+            self.bot.member_data.schedule_save()
+            asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
             # Determine milestone
             if days >= 100:

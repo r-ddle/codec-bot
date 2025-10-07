@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 from datetime import datetime, timedelta
 from typing import Optional
+import asyncio
 from io import BytesIO
 
 from utils.formatters import format_number, make_progress_bar
@@ -116,22 +117,23 @@ class Progression(commands.Cog):
                 # Get avatar URL
                 avatar_url = member.avatar.url if member.avatar else None
 
-                # Generate the NEW tactical rank card image with correct parameters
-                img = generate_rank_card(
-                    username=member.display_name,
-                    rank_badge=current_rank_icon,
-                    rank_name=current_rank_name,  # Pass actual rank name, not level number
-                    xp=current_xp,
-                    xp_max=xp_max,
-                    gmp=current_gmp,
-                    avatar_url=avatar_url,
-                    message_count=messages,
-                    voice_time=voice_mins
+                # Generate the NEW tactical rank card image off the event loop
+                img = await asyncio.to_thread(
+                    generate_rank_card,
+                    member.display_name,
+                    current_rank_icon,
+                    current_rank_name,
+                    current_xp,
+                    xp_max,
+                    current_gmp,
+                    avatar_url,
+                    messages,
+                    voice_mins
                 )
 
-                # Convert PIL Image to BytesIO for Discord
+                # Convert PIL Image to BytesIO in thread
                 image_bytes = BytesIO()
-                img.save(image_bytes, format='PNG')
+                await asyncio.to_thread(img.save, image_bytes, 'PNG')
                 image_bytes.seek(0)
 
                 # Create Discord file from the image bytes
@@ -293,8 +295,9 @@ class Progression(commands.Cog):
                 embed.set_footer(text=f"Error generating image: {e}")
                 await ctx.send(embed=embed)
 
-            # Force save
-            await self.bot.member_data.save_data_async(force=True)
+            # Schedule a background save; avoid forcing Neon sync here
+            self.bot.member_data.schedule_save()
+            asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
         else:
             now = datetime.now()

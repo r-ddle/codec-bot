@@ -102,7 +102,7 @@ TACTICAL_WORDS: List[str] = [
 # Contact administrators for moderation appeals
 CONTACT_ADMINS: List[str] = [
     "solid.ninja",
+    "r.ddle",
     "rip_carti",
     "ahab_in_rehab",
-    "*outer.heaven*"
 ]

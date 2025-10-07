@@ -118,6 +118,44 @@ def load_font(size, font_type="text"):
 
     return ImageFont.load_default()
 
+
+# === SAFE TEXT RENDERER WITH FALLBACK ===
+def safe_draw_text(draw, xy, text, primary_font, fallback_font=None, fill=(255,255,255)):
+    """
+    Draw text character-by-character using primary_font when possible,
+    otherwise draw individual characters with fallback_font.
+
+    This avoids large blocks or missing-glyph boxes when the primary
+    (custom) font lacks certain Unicode glyphs.
+    """
+    if not text:
+        return
+
+    if fallback_font is None:
+        # fall back to robust system text font
+        fallback_font = load_font(getattr(primary_font, 'size', 18), 'text')
+
+    x, y = xy
+    for ch in text:
+        # try primary font first; if it cannot render the glyph, fall back
+        try:
+            # Many FreeTypeFont implementations raise when glyph missing via getmask
+            mask = primary_font.getmask(ch)
+            # If mask is empty or getmask succeeded, use primary
+            draw.text((x, y), ch, font=primary_font, fill=fill)
+            # measure width
+            bbox = draw.textbbox((0,0), ch, font=primary_font)
+            w = bbox[2] - bbox[0]
+        except Exception:
+            # fallback font draw
+            draw.text((x, y), ch, font=fallback_font, fill=fill)
+            bbox = draw.textbbox((0,0), ch, font=fallback_font)
+            w = bbox[2] - bbox[0]
+
+        # advance x by measured width (at least 1 to avoid infinite loops)
+        x += max(1, w)
+
+
 # === AVATAR PROCESSING ===
 def download_avatar(url, size=(280, 280)):
     """Downloads and resizes Discord avatar"""
@@ -306,10 +344,22 @@ def draw_stat_box(draw, x, y, label, value, font_label, font_value):
     """Draws a labeled stat box"""
     # Label
     draw.text((x, y), label, fill=CODEC_GREEN_DIM, font=font_label)
-    # Value
-    draw.text((x, y + 22), str(value), fill=CODEC_GREEN_BRIGHT, font=font_value)
-    # Underline
-    bbox = draw.textbbox((x, y + 22), str(value), font=font_value)
+    # Value: use safe renderer to fall back to system font for unsupported glyphs
+    try:
+        safe_draw_text(draw, (x, y + 22), str(value), primary_font=font_value,
+                       fallback_font=load_font(getattr(font_value, 'size', 18), 'text'),
+                       fill=CODEC_GREEN_BRIGHT)
+    except Exception:
+        # Last-resort: direct draw
+        draw.text((x, y + 22), str(value), fill=CODEC_GREEN_BRIGHT, font=font_value)
+
+    # Underline: measure using primary font when possible, otherwise fallback
+    try:
+        bbox = draw.textbbox((x, y + 22), str(value), font=font_value)
+    except Exception:
+        fb = load_font(getattr(font_value, 'size', 18), 'text')
+        bbox = draw.textbbox((x, y + 22), str(value), font=fb)
+
     draw.line([(x, bbox[3] + 2), (bbox[2], bbox[3] + 2)],
               fill=CODEC_GREEN_PRIMARY, width=1)
 
@@ -376,8 +426,9 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
 
     # Header: Badge + Username
     header_text = f"{rank_badge} {username.upper()}"
-    draw.text((info_x, info_y), header_text,
-             fill=CODEC_BORDER_BRIGHT, font=font_title)
+    safe_draw_text(draw, (info_x, info_y), header_text,
+                   primary_font=font_title, fallback_font=load_font(font_title.size, 'text'),
+                   fill=CODEC_BORDER_BRIGHT)
 
     # Divider - increased spacing for larger font
     draw_codec_divider(draw, info_x, info_y + 55, 820)
@@ -427,14 +478,16 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
 
     # === FOOTER ===
     footer_y = height - 35  # Adjusted position
-    draw.text((info_x, footer_y),
+    safe_draw_text(draw, (info_x, footer_y),
              "◄◄ TACTICAL ESPIONAGE ACTION // CODEC NETWORK ►►",
-             fill=CODEC_GREEN_DIM, font=font_tiny)  # Changed from font_tiny to font_small
+             primary_font=font_tiny, fallback_font=load_font(font_tiny.size, 'text'),
+             fill=CODEC_GREEN_DIM)
 
     # Copyright
-    draw.text((width - 300, footer_y),  # Adjusted position
+    safe_draw_text(draw, (width - 300, footer_y),  # Adjusted position
              "©2025 THE PHANTOM'S INN",
-             fill=CODEC_GREEN_DIM, font=font_tiny)  # Changed from font_tiny to font_small
+             primary_font=font_tiny, fallback_font=load_font(font_tiny.size, 'text'),
+             fill=CODEC_GREEN_DIM)
 
     # === APPLY CODEC FRAME ===
     draw_codec_frame(draw, width, height)

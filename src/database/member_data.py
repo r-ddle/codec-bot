@@ -1,23 +1,11 @@
-"""
-Member data management and persistence layer.
-Handles loading, saving, and updating member progression data.
-                # Backward compatibility: add daily_streak if missing
-            if "daily_streak" not in existing_data:
-                existing_data["daily_streak"] = 0
 
-            # Add join date for legacy progression if missing
-            if "join_date" not in existing_data:
-                from datetime import datetime
-                # Default to today for new check, but existing users get legacy status
-                existing_data["join_date"] = datetime.now().strftime('%Y-%m-%d')
-
-            return existing_datamport os
+import os
 import json
 import asyncio
 import shutil
 import time
 from typing import Dict, Any, List, Tuple, Optional
-from config.settings import DATABASE_FILE, logger
+from config.settings import DATABASE_FILE, logger, NEON_SYNC_INTERVAL_MINUTES
 from config.constants import ACTIVITY_REWARDS
 from utils.rank_system import calculate_rank_from_xp
 
@@ -30,6 +18,8 @@ class MemberData:
         self._save_lock = asyncio.Lock()
         self._pending_saves = False
         self.neon_db = neon_db  # Neon database instance
+        # Track last time we synced to Neon to avoid too many requests
+        self._last_neon_sync = 0.0
         logger.info(f"💾 Loaded data for {len(self.data)} guild(s)")
 
     def load_data(self) -> Dict[str, Dict[str, Any]]:
@@ -80,9 +70,16 @@ class MemberData:
                 self._pending_saves = False
                 logger.info("💾 Member data saved to JSON successfully")
 
-                # Sync to Neon database if available
+                # Sync to Neon database if available, but throttle by NEON_SYNC_INTERVAL_MINUTES
+                now = time.time()
+                minutes_since_last = (now - getattr(self, '_last_neon_sync', 0)) / 60.0
+
                 if self.neon_db and self.neon_db.pool:
-                    await self.neon_db.backup_all_data(self.data)
+                    if force or minutes_since_last >= NEON_SYNC_INTERVAL_MINUTES:
+                        await self.neon_db.backup_all_data(self.data)
+                        self._last_neon_sync = now
+                    else:
+                        logger.debug(f"Skipping Neon sync (only {minutes_since_last:.1f}m since last). Will sync later.")
 
             except Exception as e:
                 logger.error(f"❌ Error saving member data: {e}")

@@ -15,23 +15,13 @@ SHOP_ITEMS = [
         'color': 0xFFD700
     },
     {
-        'name': '🎖️ Rank Skip Token',
-        'description': 'Instantly advance to your next rank! Skips XP requirement.',
-        'category': 'special',
-        'price': 2000,
-        'duration_hours': 0,
-        'item_type': 'rank_skip',
-        'emoji': '🎖️',
-        'color': 0xFF6B6B
-    },
-    {
         'name': '📦 Tactical Intel Bundle',
         'description': 'Bonus reward package: +500 XP and +200 GMP',
         'category': 'bundle',
         'price': 150,
         'duration_hours': 0,
         'item_type': 'intel_bundle',
-        'emoji': '�',
+        'emoji': '📦',
         'color': 0x3498DB
     },
     {
@@ -48,7 +38,7 @@ SHOP_ITEMS = [
         'name': '🌟 MGS Name Color',
         'description': 'Unlock special name color role! (Cosmetic - admin will apply)',
         'category': 'cosmetic',
-        'price': 1000,
+        'price': 15000,
         'duration_hours': 0,
         'item_type': 'name_color',
         'emoji': '🌟',
@@ -58,7 +48,7 @@ SHOP_ITEMS = [
 
 # Shop UI Configuration
 SHOP_UI_CONFIG = {
-    'title': '🏪 FOXHOUND GMP SHOP',
+    'title': '🏪 GMP SHOP',
     'description': 'Use your GMP to purchase boosters and upgrades',
     'color': 0x599cff,
     'footer': 'Check your inventory with /inventory',
