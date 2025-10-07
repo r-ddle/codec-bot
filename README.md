@@ -1,10 +1,23 @@
 ﻿#  MGS Discord Bot - Refactored Architecture
 
-A Metal Gear Solid-themed Discord bot with XP-based ranking system, now with clean, modular architecture.
+A Metal Gear Solid-themed Discord bot with XP-based ranking system, now with clean, modular architecture and **cloud database backup**.
+
+## ✨ New Features
+
+- 🌐 **Neon PostgreSQL** integration for cloud data backup
+- 🚀 **24/7 hosting ready** - Deploy to Railway, Render, or Oracle Cloud
+- 💾 **Automatic data sync** - Never lose member progress
+- 📊 **Database commands** - `!neon_backup`, `!neon_status`
 
 ## 🚀 Quick Start
 
-### Installation
+### Easy Installation (Windows)
+
+```powershell
+.\setup.ps1
+```
+
+### Manual Installation
 
 1. Install dependencies:
 ```bash
@@ -14,7 +27,9 @@ pip install -r requirements.txt
 2. Configure environment:
 ```bash
 cp .env.example .env
-# Edit .env with your Discord bot token and API keys
+# Edit .env with your tokens:
+#   - DISCORD_TOKEN (required)
+#   - NEON_DATABASE_URL (optional, recommended)
 ```
 
 3. Run the bot:
@@ -22,6 +37,14 @@ cp .env.example .env
 cd src
 python bot.py
 ```
+
+## ☁️ Cloud Deployment
+
+See **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** for:
+- Setting up Neon PostgreSQL (free database)
+- Deploying to Railway.app (recommended)
+- Alternative free hosting options
+- 24/7 uptime solutions
 
 ## 📁 Project Structure
 

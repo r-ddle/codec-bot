@@ -15,12 +15,13 @@ from utils.rank_system import calculate_rank_from_xp
 
 class MemberData:
     """Handles all member data storage and progression."""
-    
-    def __init__(self):
+
+    def __init__(self, neon_db=None):
         self.data: Dict[str, Dict[str, Any]] = self.load_data()
         self._save_lock = asyncio.Lock()
         self._pending_saves = False
-        logger.info(f"Loaded data for {len(self.data)} guild(s)")
+        self.neon_db = neon_db  # Neon database instance
+        logger.info(f"💾 Loaded data for {len(self.data)} guild(s)")
 
     def load_data(self) -> Dict[str, Dict[str, Any]]:
         """Load data from JSON file."""
@@ -28,14 +29,14 @@ class MemberData:
             if os.path.exists(DATABASE_FILE):
                 with open(DATABASE_FILE, 'r') as f:
                     raw_data = json.load(f)
-                    
+
                 if not raw_data:
                     logger.info("Empty database file found, starting fresh")
                     return {}
-                
+
                 if isinstance(raw_data, dict):
                     guild_like_keys = [k for k in raw_data.keys() if k.isdigit() and len(k) > 10]
-                    
+
                     if guild_like_keys:
                         logger.info(f"Found existing guild data for {len(guild_like_keys)} guild(s)")
                         return raw_data
@@ -48,29 +49,34 @@ class MemberData:
             else:
                 logger.info("No database file found, starting fresh")
                 return {}
-                
+
         except Exception as e:
             logger.error(f"Error loading member data: {e}")
             return {}
 
     async def save_data_async(self, force: bool = False) -> None:
-        """Save data with atomic write operation."""
+        """Save data with atomic write operation and sync to Neon."""
         async with self._save_lock:
             try:
+                # Save to JSON first (local backup)
                 if os.path.exists(DATABASE_FILE):
                     backup_file = f"{DATABASE_FILE}.backup"
                     shutil.copy2(DATABASE_FILE, backup_file)
-                
+
                 temp_file = f"{DATABASE_FILE}.tmp"
                 with open(temp_file, 'w') as f:
                     json.dump(self.data, f, indent=2)
-                
+
                 os.replace(temp_file, DATABASE_FILE)
                 self._pending_saves = False
-                logger.info("Member data saved successfully")
-                
+                logger.info("💾 Member data saved to JSON successfully")
+
+                # Sync to Neon database if available
+                if self.neon_db and self.neon_db.pool:
+                    await self.neon_db.backup_all_data(self.data)
+
             except Exception as e:
-                logger.error(f"Error saving member data: {e}")
+                logger.error(f"❌ Error saving member data: {e}")
                 if os.path.exists(f"{DATABASE_FILE}.tmp"):
                     os.remove(f"{DATABASE_FILE}.tmp")
 
@@ -81,22 +87,22 @@ class MemberData:
     def get_member_data(self, member_id: int, guild_id: int) -> Dict[str, Any]:
         """
         Get member data for specific guild.
-        
+
         Args:
             member_id: Discord member ID
             guild_id: Discord guild ID
-            
+
         Returns:
             Member data dictionary
         """
         guild_key = str(guild_id)
         member_key = str(member_id)
-        
+
         # Ensure guild exists in data
         if guild_key not in self.data:
             self.data[guild_key] = {}
             logger.info(f"Created new guild data for {guild_key}")
-        
+
         # Check if member exists
         if member_key in self.data[guild_key]:
             existing_data = self.data[guild_key][member_key]
@@ -123,39 +129,39 @@ class MemberData:
                 "last_message_time": 0,
                 "last_tactical_bonus": 0
             }
-            
+
             self.data[guild_key][member_key] = default_member.copy()
             self.schedule_save()
             logger.info(f"Created new member {member_key} in guild {guild_key}")
             return self.data[guild_key][member_key]
 
     def add_xp_and_gmp(
-        self, 
-        member_id: int, 
-        guild_id: int, 
-        gmp_change: int, 
-        xp_change: int, 
+        self,
+        member_id: int,
+        guild_id: int,
+        gmp_change: int,
+        xp_change: int,
         activity_type: Optional[str] = None
     ) -> Tuple[bool, str]:
         """
         Add XP and GMP to member and check for rank changes.
-        
+
         Args:
             member_id: Discord member ID
             guild_id: Discord guild ID
             gmp_change: Amount of GMP to add
             xp_change: Amount of XP to add
             activity_type: Type of activity (for tracking stats)
-            
+
         Returns:
             Tuple of (rank_changed, new_rank)
         """
         member_data = self.get_member_data(member_id, guild_id)
-        
+
         # Store old values
         old_rank = member_data["rank"]
         old_xp = member_data["xp"]
-        
+
         # Update stats based on activity type
         if activity_type:
             if activity_type == "message":
@@ -170,85 +176,85 @@ class MemberData:
                 member_data["tactical_words_used"] += 1
                 member_data["total_tactical_words"] += 1
                 member_data["last_tactical_bonus"] = time.time()
-        
+
         # Add GMP and XP
         member_data["gmp"] += gmp_change
         member_data["xp"] += xp_change
-        
+
         # Recalculate rank based on new XP
         new_rank, new_icon = calculate_rank_from_xp(member_data["xp"])
         member_data["rank"] = new_rank
         member_data["rank_icon"] = new_icon
-        
+
         # Schedule save
         self.schedule_save()
-        
+
         # Log the change
         logger.debug(f"Member {member_id}: +{xp_change} XP ({old_xp} -> {member_data['xp']}), Rank: {old_rank} -> {new_rank}")
-        
+
         # Return whether rank changed
         return old_rank != new_rank, new_rank
 
     def award_daily_bonus(self, member_id: int, guild_id: int) -> Tuple[bool, int, int, bool, Optional[str]]:
         """
         Award daily bonus to member.
-        
+
         Args:
             member_id: Discord member ID
             guild_id: Discord guild ID
-            
+
         Returns:
             Tuple of (success, gmp_bonus, xp_bonus, rank_changed, new_rank)
         """
         from datetime import datetime
-        
+
         member_data = self.get_member_data(member_id, guild_id)
         today = datetime.now().strftime('%Y-%m-%d')
-        
+
         if member_data["last_daily"] != today:
             member_data["last_daily"] = today
-            
+
             gmp_bonus = ACTIVITY_REWARDS["daily_bonus"]["gmp"]
             xp_bonus = ACTIVITY_REWARDS["daily_bonus"]["xp"]
-            
+
             rank_changed, new_rank = self.add_xp_and_gmp(
                 member_id, guild_id, gmp_bonus, xp_bonus
             )
-            
+
             return True, gmp_bonus, xp_bonus, rank_changed, new_rank
-        
+
         return False, 0, 0, False, None
 
     def get_leaderboard(self, guild_id: int, sort_by: str = "xp", limit: int = 10) -> List[Tuple[str, Dict[str, Any]]]:
         """
         Get leaderboard for specific guild.
-        
+
         Args:
             guild_id: Discord guild ID
             sort_by: Field to sort by
             limit: Maximum number of results
-            
+
         Returns:
             List of (member_id, member_data) tuples
         """
         guild_key = str(guild_id)
-        
+
         if guild_key not in self.data:
             return []
-        
+
         valid_sort_options = ["gmp", "xp", "tactical_words_used", "messages_sent", "total_tactical_words"]
         if sort_by not in valid_sort_options:
             sort_by = "xp"
-        
-        active_members = {k: v for k, v in self.data[guild_key].items() 
+
+        active_members = {k: v for k, v in self.data[guild_key].items()
                          if v.get('messages_sent', 0) > 0 or v.get('xp', 0) > 0}
-            
+
         sorted_members = sorted(
             active_members.items(),
             key=lambda x: x[1].get(sort_by, 0),
             reverse=True
         )
-        
+
         return sorted_members[:limit]
 
     def mark_member_verified(self, member_id: int, guild_id: int) -> None:
