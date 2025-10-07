@@ -2920,11 +2920,11 @@
       "last_tactical_bonus": 1759474154.5501852
     },
     "1040597411116089424": {
-      "gmp": 1379,
-      "xp": 92,
+      "gmp": 1394,
+      "xp": 95,
       "rank": "Rookie",
-      "rank_icon": "\ud83d\udd30",
-      "messages_sent": 16,
+      "rank_icon": "",
+      "messages_sent": 17,
       "voice_minutes": 0,
       "reactions_given": 2,
       "reactions_received": 1,
@@ -2932,7 +2932,7 @@
       "tactical_words_used": 5,
       "verified": false,
       "total_tactical_words": 5,
-      "last_message_time": 1759471389.9434469,
+      "last_message_time": 1759829097.5789385,
       "last_tactical_bonus": 1759468780.7271893
     },
     "1119157054125395988": {
