@@ -21,11 +21,11 @@ async def load_extensions(bot: MGSBot):
         # Command cogs
         'cogs.progression',
         'cogs.info',
-        'cogs.moderation',
+        # 'cogs.moderation',  # ARCHIVED - Sapphire bot handles moderation
         'cogs.admin',
         'cogs.intel',
         'cogs.slash_commands',
-        'cogs.shop_commands',  # Phase 4: Shop system with image generation
+        'cogs.shop_commands',  # Simplified shop system
         # Event handlers
         'events.member_events',
         'events.message_events',

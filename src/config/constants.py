@@ -40,18 +40,36 @@ CODEC_RESPONSES: List[str] = [
 ]
 
 # XP-BASED RANK PROGRESSION SYSTEM
+# NEW BALANCED PROGRESSION (Oct 2025) - Existing users keep old thresholds
 MGS_RANKS: List[Dict[str, Any]] = [
-    {"name": "Rookie", "required_xp": 0, "icon": "", "role_name": None},
-    {"name": "Private", "required_xp": 100, "icon": "", "role_name": "Private"},
-    {"name": "Specialist", "required_xp": 200, "icon": "", "role_name": "Specialist"},
-    {"name": "Corporal", "required_xp": 350, "icon": "", "role_name": "Corporal"},
-    {"name": "Sergeant", "required_xp": 500, "icon": "", "role_name": "Sergeant"},
-    {"name": "Lieutenant", "required_xp": 750, "icon": "", "role_name": "Lieutenant"},
-    {"name": "Captain", "required_xp": 1000, "icon": "", "role_name": "Captain"},
-    {"name": "Major", "required_xp": 1500, "icon": "", "role_name": "Major"},
-    {"name": "Colonel", "required_xp": 2500, "icon": "", "role_name": "Colonel"},
-    {"name": "FOXHOUND", "required_xp": 4000, "icon": "", "role_name": "FOXHOUND"}
+    {"name": "Rookie", "required_xp": 0, "icon": "🎖️", "role_name": None},
+    {"name": "Private", "required_xp": 200, "icon": "🪖", "role_name": "Private"},
+    {"name": "Specialist", "required_xp": 500, "icon": "🎯", "role_name": "Specialist"},
+    {"name": "Corporal", "required_xp": 1000, "icon": "⭐", "role_name": "Corporal"},
+    {"name": "Sergeant", "required_xp": 1800, "icon": "🏅", "role_name": "Sergeant"},
+    {"name": "Lieutenant", "required_xp": 3000, "icon": "🎖️", "role_name": "Lieutenant"},
+    {"name": "Captain", "required_xp": 5000, "icon": "💫", "role_name": "Captain"},
+    {"name": "Major", "required_xp": 8000, "icon": "⚡", "role_name": "Major"},
+    {"name": "Colonel", "required_xp": 12000, "icon": "🌟", "role_name": "Colonel"},
+    {"name": "FOXHOUND", "required_xp": 18000, "icon": "🦊", "role_name": "FOXHOUND"}
 ]
+
+# LEGACY RANKS (Pre-Oct 2025 users) - Used for backward compatibility
+MGS_RANKS_LEGACY: List[Dict[str, Any]] = [
+    {"name": "Rookie", "required_xp": 0, "icon": "🎖️", "role_name": None},
+    {"name": "Private", "required_xp": 100, "icon": "🪖", "role_name": "Private"},
+    {"name": "Specialist", "required_xp": 200, "icon": "🎯", "role_name": "Specialist"},
+    {"name": "Corporal", "required_xp": 350, "icon": "⭐", "role_name": "Corporal"},
+    {"name": "Sergeant", "required_xp": 500, "icon": "🏅", "role_name": "Sergeant"},
+    {"name": "Lieutenant", "required_xp": 750, "icon": "🎖️", "role_name": "Lieutenant"},
+    {"name": "Captain", "required_xp": 1000, "icon": "💫", "role_name": "Captain"},
+    {"name": "Major", "required_xp": 1500, "icon": "⚡", "role_name": "Major"},
+    {"name": "Colonel", "required_xp": 2500, "icon": "🌟", "role_name": "Colonel"},
+    {"name": "FOXHOUND", "required_xp": 4000, "icon": "🦊", "role_name": "FOXHOUND"}
+]
+
+# Cutoff date for legacy progression (October 8, 2025)
+LEGACY_USER_CUTOFF = "2025-10-08"
 
 # Activity rewards
 ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
@@ -65,11 +83,11 @@ ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
 
 # Tactical vocabulary for bonus detection
 TACTICAL_WORDS: List[str] = [
-    "tactical", "stealth", "operation", "infiltrate", "extract", "intel", 
+    "tactical", "stealth", "operation", "infiltrate", "extract", "intel",
     "recon", "mission", "target", "objective", "deploy", "enemy", "patrol",
     "metal gear", "foxhound", "shadow moses", "outer heaven", "snake",
     "ocelot", "motherbase", "phantom pain", "peace walker", "mg", "mgs",
-    "nanomachines", "revolver", "diamond dogs", "boss", "tactic", 
+    "nanomachines", "revolver", "diamond dogs", "boss", "tactic",
     "espionage", "alert", "caution", "silencer", "weapon", "gear", "military",
     "soldier", "warfare", "combat", "strategy", "sniper", "assault", "defense",
     "artillery", "ammunition", "camouflage", "surveillance", "reconnaissance",
@@ -84,7 +102,7 @@ TACTICAL_WORDS: List[str] = [
 # Contact administrators for moderation appeals
 CONTACT_ADMINS: List[str] = [
     "solid.ninja",
-    "rip_carti", 
+    "rip_carti",
     "ahab_in_rehab",
     "*outer.heaven*"
 ]

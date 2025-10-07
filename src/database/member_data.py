@@ -1,8 +1,17 @@
 """
 Member data management and persistence layer.
 Handles loading, saving, and updating member progression data.
-"""
-import os
+                # Backward compatibility: add daily_streak if missing
+            if "daily_streak" not in existing_data:
+                existing_data["daily_streak"] = 0
+
+            # Add join date for legacy progression if missing
+            if "join_date" not in existing_data:
+                from datetime import datetime
+                # Default to today for new check, but existing users get legacy status
+                existing_data["join_date"] = datetime.now().strftime('%Y-%m-%d')
+
+            return existing_datamport os
 import json
 import asyncio
 import shutil
@@ -118,11 +127,12 @@ class MemberData:
             return existing_data
         else:
             # New member, create default data
+            from datetime import datetime
             default_member = {
                 "gmp": 1000,
                 "xp": 0,
                 "rank": "Rookie",
-                "rank_icon": "",
+                "rank_icon": "🎖️",
                 "messages_sent": 0,
                 "voice_minutes": 0,
                 "reactions_given": 0,
@@ -133,7 +143,8 @@ class MemberData:
                 "verified": False,
                 "total_tactical_words": 0,
                 "last_message_time": 0,
-                "last_tactical_bonus": 0
+                "last_tactical_bonus": 0,
+                "join_date": datetime.now().strftime('%Y-%m-%d')
             }
 
             self.data[guild_key][member_key] = default_member.copy()

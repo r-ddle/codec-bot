@@ -2,58 +2,57 @@
 Shop configuration - Easy customization of shop items and UI
 """
 
-# Shop Items Configuration
+# SIMPLIFIED Shop Items - Keep it simple for MGS community!
 SHOP_ITEMS = [
     {
-        'name': 'XP Booster 2x (1 hour)',
-        'description': 'Double XP from all activities for 1 hour',
+        'name': '⚡ XP Booster (2 Hours)',
+        'description': 'Double XP from all activities for 2 hours. Perfect for a gaming session!',
         'category': 'booster',
-        'price': 300,
-        'duration_hours': 1,
-        'item_type': 'xp_boost_1h',
+        'price': 500,
+        'duration_hours': 2,
+        'item_type': 'xp_boost_2h',
         'emoji': '⚡',
         'color': 0xFFD700
     },
     {
-        'name': 'XP Booster 2x (24 hours)',
-        'description': 'Double XP from all activities for 24 hours',
-        'category': 'booster',
+        'name': '🎖️ Rank Skip Token',
+        'description': 'Instantly advance to your next rank! Skips XP requirement.',
+        'category': 'special',
         'price': 2000,
-        'duration_hours': 24,
-        'item_type': 'xp_boost_24h',
-        'emoji': '🔥',
+        'duration_hours': 0,
+        'item_type': 'rank_skip',
+        'emoji': '🎖️',
         'color': 0xFF6B6B
     },
     {
-        'name': 'XP Booster 2x (1 week)',
-        'description': 'Double XP from all activities for 7 days',
-        'category': 'booster',
-        'price': 5000,
-        'duration_hours': 168,
-        'item_type': 'xp_boost_1w',
-        'emoji': '💎',
-        'color': 0x9B59B6
-    },
-    {
-        'name': 'Daily Bonus Multiplier',
-        'description': 'Double your next daily bonus (one-time use)',
-        'category': 'booster',
-        'price': 500,
+        'name': '📦 Tactical Intel Bundle',
+        'description': 'Bonus reward package: +500 XP and +200 GMP',
+        'category': 'bundle',
+        'price': 150,
         'duration_hours': 0,
-        'item_type': 'daily_multiplier',
-        'emoji': '🎁',
+        'item_type': 'intel_bundle',
+        'emoji': '�',
         'color': 0x3498DB
     },
     {
-        'name': 'GMP Pack (Small)',
-        'description': 'Get 1,000 bonus GMP instantly',
-        'category': 'currency',
-        'price': 0,  # Free or can be set
-        'duration_hours': 0,  # Instant use
-        'gmp_amount': 1000,
-        'item_type': 'gmp_small',
-        'emoji': '💰',
+        'name': '🎁 Extra Daily Claim',
+        'description': 'Get a second daily bonus today! One-time use.',
+        'category': 'special',
+        'price': 300,
+        'duration_hours': 0,
+        'item_type': 'extra_daily',
+        'emoji': '🎁',
         'color': 0x2ECC71
+    },
+    {
+        'name': '🌟 MGS Name Color',
+        'description': 'Unlock special name color role! (Cosmetic - admin will apply)',
+        'category': 'cosmetic',
+        'price': 1000,
+        'duration_hours': 0,
+        'item_type': 'name_color',
+        'emoji': '🌟',
+        'color': 0x9B59B6
     },
 ]
 
