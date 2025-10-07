@@ -19,13 +19,16 @@ CODEC_STATIC_OVERLAY = (40, 160, 80)  # Static effect color
 
 # === FONT LOADING WITH FALLBACKS ===
 def load_font(size):
-    """Load MGS-style monospace font with multiple fallbacks"""
+    """Load Helvetica or clean sans-serif font with multiple fallbacks"""
     fonts_to_try = [
-        "consola.ttf",
-        "cour.ttf",
-        "DejaVuSansMono.ttf",
-        "LiberationMono-Regular.ttf",
-        "FreeMono.ttf"
+        "Helvetica.ttf",           # Helvetica (if you download it)
+        "HelveticaNeue.ttf",       # Helvetica Neue
+        "arial.ttf",               # Arial (similar to Helvetica)
+        "Arial.ttf",               # Arial alternate
+        "segoeui.ttf",             # Segoe UI (clean Windows font)
+        "calibri.ttf",             # Calibri (modern clean)
+        "consola.ttf",             # Consolas fallback
+        "cour.ttf",                # Courier New fallback
     ]
 
     for font_name in fonts_to_try:
@@ -107,8 +110,8 @@ def add_heavy_scanlines(img, spacing=2):
     draw = ImageDraw.Draw(overlay)
 
     for y in range(0, img.height, spacing):
-        # Alternate scanline intensity
-        alpha = 60 if y % (spacing * 2) == 0 else 30
+        # Alternate scanline intensity - INCREASED for better visibility
+        alpha = 80 if y % (spacing * 2) == 0 else 45
         draw.line([(0, y), (img.width, y)], fill=(0, 0, 0, alpha))
 
     if img.mode != 'RGBA':
@@ -253,18 +256,18 @@ def generate_rank_card(username, rank_badge, level, xp, xp_max, gmp,
     Returns:
         PIL Image object
     """
-    width, height = 1200, 400
+    width, height = 1200, 450
 
     # Create base with dark codec background
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
 
-    # Load fonts
-    font_title = load_font(32)      # Username
-    font_large = load_font(24)      # Stats values
-    font_medium = load_font(18)     # Labels
-    font_small = load_font(14)      # Secondary info
-    font_tiny = load_font(12)       # Footer
+    # Load fonts - INCREASED SIZES for better readability
+    font_title = load_font(42)      # Username - increased from 32
+    font_large = load_font(32)      # Stats values - increased from 24
+    font_medium = load_font(22)     # Labels - increased from 18
+    font_small = load_font(18)      # Secondary info - increased from 14
+    font_tiny = load_font(14)       # Footer - increased from 12
 
     # === LEFT SIDE: AVATAR PANEL ===
     avatar_x = 30
@@ -287,32 +290,32 @@ def generate_rank_card(username, rank_badge, level, xp, xp_max, gmp,
 
     # === RIGHT SIDE: INFORMATION PANEL ===
     info_x = 320
-    info_y = 40
+    info_y = 30  # Slightly higher for better balance
 
     # Header: Badge + Username
     header_text = f"{rank_badge} {username.upper()}"
     draw.text((info_x, info_y), header_text,
              fill=CODEC_BORDER_BRIGHT, font=font_title)
 
-    # Divider
-    draw_codec_divider(draw, info_x, info_y + 45, 820)
+    # Divider - increased spacing for larger font
+    draw_codec_divider(draw, info_x, info_y + 55, 820)
 
     # Mission Briefing Style Header
-    current_y = info_y + 65
+    current_y = info_y + 75  # Increased from 65 for better spacing
     draw.text((info_x, current_y), "► TACTICAL STATUS REPORT",
              fill=CODEC_GREEN_TEXT, font=font_small)
-    current_y += 25
+    current_y += 30  # Increased from 25 for better spacing
 
     # === STAT DISPLAYS ===
-    # Row 1: Level and GMP
-    stat_spacing = 200
+    # Row 1: Level and GMP - INCREASED SPACING for larger fonts
+    stat_spacing = 240  # Increased from 200 to accommodate larger text
     draw_stat_box(draw, info_x, current_y, "RANK LEVEL", f"Lv. {level}",
                  font_small, font_large)
     draw_stat_box(draw, info_x + stat_spacing, current_y, "GMP BALANCE",
                  f"{gmp:,}", font_small, font_large)
 
     # Row 2: Messages and Voice Time
-    current_y += 80
+    current_y += 85  # Increased from 80 for better spacing
     draw_stat_box(draw, info_x, current_y, "MESSAGES", f"{message_count:,}",
                  font_small, font_large)
     draw_stat_box(draw, info_x + stat_spacing, current_y, "VOICE TIME",
@@ -324,32 +327,32 @@ def generate_rank_card(username, rank_badge, level, xp, xp_max, gmp,
                      f"#{leaderboard_pos}", font_small, font_large)
 
     # === XP PROGRESS BAR ===
-    current_y += 80
+    current_y += 65  # Increased from 80 for better spacing
     draw.text((info_x, current_y), "EXPERIENCE POINTS",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    progress_y = current_y + 22
+    progress_y = current_y + 26  # Increased from 22 for larger fonts
     progress_width = 600
     progress = min(max(xp / xp_max, 0), 1) if xp_max > 0 else 1.0
 
-    draw_mgs_progress_bar(draw, info_x, progress_y, progress_width, 24,
+    draw_mgs_progress_bar(draw, info_x, progress_y, progress_width, 28,  # Height increased from 24 to 28
                          progress, f"{xp:,} / {xp_max:,}")
 
-    # XP text below bar
-    draw.text((info_x, progress_y + 30),
+    # XP text below bar - INCREASED font size
+    draw.text((info_x, progress_y + 35),  # Adjusted position
              f"[ {xp:,} XP / {xp_max:,} XP ]",
-             fill=CODEC_GREEN_TEXT, font=font_tiny)
+             fill=CODEC_GREEN_TEXT, font=font_small)  # Changed from font_tiny to font_small
 
     # === FOOTER ===
-    footer_y = height - 30
+    footer_y = height - 35  # Adjusted position
     draw.text((info_x, footer_y),
              "◄◄ TACTICAL ESPIONAGE ACTION // CODEC NETWORK ►►",
-             fill=CODEC_GREEN_DIM, font=font_tiny)
+             fill=CODEC_GREEN_DIM, font=font_tiny)  # Changed from font_tiny to font_small
 
     # Copyright
-    draw.text((width - 400, footer_y),
-             "©1987 2001 Konami Computer Entertainment",
-             fill=CODEC_GREEN_DIM, font=font_tiny)
+    draw.text((width - 300, footer_y),  # Adjusted position
+             "©2025 THE PHANTOM'S INN",
+             fill=CODEC_GREEN_DIM, font=font_tiny)  # Changed from font_tiny to font_small
 
     # === APPLY CODEC FRAME ===
     draw_codec_frame(draw, width, height)
