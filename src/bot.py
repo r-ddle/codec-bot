@@ -25,12 +25,13 @@ async def load_extensions(bot: MGSBot):
         'cogs.admin',
         'cogs.intel',
         'cogs.slash_commands',
+        'cogs.shop_commands',  # Phase 4: Shop system with image generation
         # Event handlers
         'events.member_events',
         'events.message_events',
         'events.reaction_events',
     ]
-    
+
     for extension in extensions:
         try:
             await bot.load_extension(extension)
@@ -45,9 +46,9 @@ async def main():
         logger.error(" CRITICAL ERROR: DISCORD_TOKEN not found!")
         logger.error("Please add DISCORD_TOKEN=your_bot_token to your .env file")
         return
-    
+
     bot = MGSBot()
-    
+
     async with bot:
         await load_extensions(bot)
         logger.info(" Starting MGS Discord Bot with XP-Based Ranking...")

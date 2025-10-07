@@ -6,10 +6,12 @@ from discord.ext import tasks, commands
 import random
 import re
 from typing import Dict, Any
-from config.settings import COMMAND_PREFIX, logger, ALERT_CHECK_INTERVAL, VOICE_TRACK_INTERVAL, BACKUP_INTERVAL, AUTO_SAVE_INTERVAL, TACTICAL_BONUS_MAX
+from config.settings import COMMAND_PREFIX, logger, ALERT_CHECK_INTERVAL, VOICE_TRACK_INTERVAL, BACKUP_INTERVAL, AUTO_SAVE_INTERVAL, TACTICAL_BONUS_MAX, FEATURE_FLAGS
 from config.constants import MGS_CODEC_SOUNDS, MGS_QUOTES, TACTICAL_WORDS, ACTIVITY_REWARDS
 from database.member_data import MemberData
 from database.neon_db import NeonDatabase
+from database.extensions import DatabaseExtensions
+from utils.shop import ShopSystem
 
 
 class MGSBot(commands.Bot):
@@ -22,8 +24,14 @@ class MGSBot(commands.Bot):
         # Initialize Neon database
         self.neon_db = NeonDatabase()
 
+        # Initialize database extensions (Phase 1)
+        self.db_extensions = DatabaseExtensions(self.neon_db)
+
         # Initialize member data with Neon integration
         self.member_data = MemberData(neon_db=self.neon_db)
+
+        # Initialize shop system (Phase 3)
+        self.shop_system = ShopSystem(self)
 
         self.remove_command('help')  # Remove default help to use custom one
         self.codec_conversations: Dict[int, Dict[str, Any]] = {}
@@ -32,6 +40,11 @@ class MGSBot(commands.Bot):
         """Initialize bot tasks and sync slash commands."""
         # Connect to Neon database
         await self.neon_db.connect()
+
+        # Initialize extended database schema (Phase 1) - safe, won't affect existing data
+        if self.neon_db.pool:
+            await self.db_extensions.init_extended_schema()
+            logger.info("✅ Database extensions initialized")
 
         # Start background tasks
         self.check_alerts.start()

@@ -35,3 +35,17 @@ ALERT_CHECK_INTERVAL: int = 60
 VOICE_TRACK_INTERVAL: int = 10
 BACKUP_INTERVAL: int = 720  # 12 hours
 AUTO_SAVE_INTERVAL: int = 5
+
+# Bot Version Tracking
+BOT_VERSION: str = "2.0.0-alpha"
+MIGRATION_VERSION: int = 1
+
+# Feature Flags - Enable/disable features without code changes
+# IMPORTANT: Keep these False until features are fully tested
+FEATURE_FLAGS = {
+    'ENABLE_SHOP': True,  # GMP shop system - Phase 3/4
+    'ENABLE_MISSIONS': True,  # Daily/weekly missions - Phase 5
+    'ENABLE_SLASH_COMMANDS': True,  # Slash commands (already partially implemented)
+    'ENABLE_ACHIEVEMENTS': True,  # Achievement system - Phase 6
+    'ENABLE_XP_BOOSTERS': True,  # XP multiplier boosters from shop - Phase 3/4
+}

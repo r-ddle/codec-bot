@@ -433,6 +433,165 @@ Lieutenant: 750 XP
             await ctx.send(f" Error during resync: {e}")
             logger.error(f"Error in Neon resync: {e}")
 
+    # ===== PHASE 3: SHOP SYSTEM ADMIN COMMANDS =====
+
+    @commands.command(name='shop_init')
+    @commands.has_permissions(administrator=True)
+    async def shop_init(self, ctx):
+        """Initialize shop items in database (Admin only - Phase 3)."""
+        if not hasattr(self.bot, 'shop_system'):
+            await ctx.send("❌ Shop system not initialized")
+            return
+
+        await ctx.send("🔄 Initializing shop items...")
+        success = await self.bot.shop_system.initialize_shop_items()
+
+        if success:
+            embed = discord.Embed(
+                title="✅ SHOP INITIALIZED",
+                description="Shop items have been added to the database",
+                color=0x00ff00
+            )
+            embed.add_field(name="Items Added", value="4 XP Boosters", inline=False)
+            embed.set_footer(text="Use !shop_list to view all items")
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("❌ Failed to initialize shop. Check logs for details.")
+
+    @commands.command(name='shop_list')
+    @commands.has_permissions(administrator=True)
+    async def shop_list(self, ctx):
+        """List all shop items (Admin only)."""
+        if not hasattr(self.bot, 'shop_system'):
+            await ctx.send("❌ Shop system not initialized")
+            return
+
+        items = await self.bot.shop_system.get_shop_items()
+
+        if not items:
+            await ctx.send("❌ No shop items found. Use !shop_init first.")
+            return
+
+        embed = discord.Embed(
+            title="🏪 SHOP ITEMS",
+            description="All available items in the shop",
+            color=0x599cff
+        )
+
+        for item in items:
+            duration = f" ({item['duration_hours']}h)" if item['duration_hours'] > 0 else " (One-time)"
+            embed.add_field(
+                name=f"{item['name']}{duration}",
+                value=f"**ID:** {item['item_id']}\n**Price:** {item['price']} GMP\n{item['description']}",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name='shop_test_buy')
+    @commands.has_permissions(administrator=True)
+    async def shop_test_buy(self, ctx, item_id: int):
+        """Test purchasing an item (Admin only)."""
+        if not hasattr(self.bot, 'shop_system'):
+            await ctx.send("❌ Shop system not initialized")
+            return
+
+        await ctx.send(f"🔄 Testing purchase of item ID {item_id}...")
+
+        success, message, item_data = await self.bot.shop_system.purchase_item(
+            ctx.author.id, ctx.guild.id, item_id
+        )
+
+        if success:
+            embed = discord.Embed(
+                title="✅ PURCHASE SUCCESSFUL",
+                description=message,
+                color=0x00ff00
+            )
+            if item_data:
+                embed.add_field(name="Item", value=item_data['name'], inline=True)
+                embed.add_field(name="Price", value=f"{item_data['price']} GMP", inline=True)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(f"❌ {message}")
+
+    @commands.command(name='shop_test_inventory')
+    @commands.has_permissions(administrator=True)
+    async def shop_test_inventory(self, ctx, member: discord.Member = None):
+        """View a member's inventory (Admin only)."""
+        target = member or ctx.author
+
+        if not hasattr(self.bot, 'shop_system'):
+            await ctx.send("❌ Shop system not initialized")
+            return
+
+        items = await self.bot.shop_system.get_member_inventory(target.id, ctx.guild.id)
+
+        if not items:
+            await ctx.send(f"📦 {target.display_name} has no items in inventory")
+            return
+
+        embed = discord.Embed(
+            title=f"📦 {target.display_name}'s Inventory",
+            description=f"Total items: {len(items)}",
+            color=0x599cff
+        )
+
+        for item in items[:10]:  # Show first 10
+            status = "🟢 Active" if item['is_active'] else "⚪ Not Used"
+            expires = f"\nExpires: {item['expires_at'].strftime('%Y-%m-%d %H:%M')}" if item['expires_at'] else ""
+            embed.add_field(
+                name=f"{item['name']} - {status}",
+                value=f"**Inventory ID:** {item['inventory_id']}\nPurchased: {item['purchased_at'].strftime('%Y-%m-%d')}{expires}",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name='shop_test_activate')
+    @commands.has_permissions(administrator=True)
+    async def shop_test_activate(self, ctx, inventory_id: int):
+        """Test activating a booster (Admin only)."""
+        if not hasattr(self.bot, 'shop_system'):
+            await ctx.send("❌ Shop system not initialized")
+            return
+
+        await ctx.send(f"🔄 Testing activation of inventory item {inventory_id}...")
+
+        success, message = await self.bot.shop_system.activate_booster(
+            ctx.author.id, ctx.guild.id, inventory_id
+        )
+
+        if success:
+            embed = discord.Embed(
+                title="✅ BOOSTER ACTIVATED",
+                description=message,
+                color=0x00ff00
+            )
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(f"❌ {message}")
+
+    @commands.command(name='shop_give_gmp')
+    @commands.has_permissions(administrator=True)
+    async def shop_give_gmp(self, ctx, member: discord.Member, amount: int):
+        """Give GMP to a member for testing (Admin only)."""
+        if amount <= 0:
+            await ctx.send("❌ Amount must be positive")
+            return
+
+        member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
+        member_data['gmp'] += amount
+        self.bot.member_data.schedule_save()
+
+        embed = discord.Embed(
+            title="💰 GMP GRANTED",
+            description=f"Gave **{amount} GMP** to {member.mention}",
+            color=0x00ff00
+        )
+        embed.add_field(name="New Balance", value=f"{member_data['gmp']} GMP", inline=False)
+        await ctx.send(embed=embed)
+
 
 async def setup(bot):
     """Load the Admin cog."""
