@@ -4,9 +4,13 @@ Slash Commands cog - Application command implementations.
 import discord
 from discord.ext import commands
 from discord import app_commands
+from io import BytesIO
 
 from utils.formatters import format_number
 from config.constants import MGS_RANKS
+from utils.daily_supply_gen import generate_daily_supply_card
+from utils.rank_system import get_rank_data_by_name
+from utils.role_manager import update_member_roles
 
 
 class SlashCommands(commands.Cog):
@@ -139,34 +143,77 @@ class SlashCommands(commands.Cog):
     @app_commands.command(name="daily", description="Claim your daily bonus of GMP and XP")
     async def daily_slash(self, interaction: discord.Interaction):
         """Slash command version of !daily - claim daily rewards."""
+        await interaction.response.defer()  # Image generation might take a moment
+
         success, gmp, xp, rank_changed, new_rank = self.bot.member_data.award_daily_bonus(
             interaction.user.id,
             interaction.guild.id
         )
 
         if success:
-            embed = discord.Embed(
-                title="📅 DAILY BONUS CLAIMED",
-                description=f"You received **{gmp} GMP** and **{xp} XP**!",
-                color=0x00ff00
-            )
+            # Get updated member data
+            member_data = self.bot.member_data.get_member_data(interaction.user.id, interaction.guild.id)
 
+            # Get streak info
+            streak_days = member_data.get('daily_streak', 1)
+
+            # Determine role granted if promoted
+            role_granted = None
             if rank_changed:
-                embed.add_field(
-                    name="🎉 RANK UP!",
-                    value=f"You've been promoted to **{new_rank}**!",
-                    inline=False
+                role_updated = await update_member_roles(interaction.user, new_rank)
+                if role_updated:
+                    rank_data = get_rank_data_by_name(new_rank)
+                    role_granted = rank_data.get("role_name", new_rank)
+
+            # Generate MGS Codec-style supply drop image
+            try:
+                img = generate_daily_supply_card(
+                    username=interaction.user.display_name,
+                    gmp_reward=gmp,
+                    xp_reward=xp,
+                    current_gmp=member_data['gmp'],
+                    current_xp=member_data['xp'],
+                    current_rank=member_data['rank'],
+                    streak_days=streak_days,
+                    promoted=rank_changed,
+                    new_rank=new_rank if rank_changed else None,
+                    role_granted=role_granted
                 )
 
-            embed.set_footer(text="Come back tomorrow for another bonus!")
-            await interaction.response.send_message(embed=embed)
+                # Convert to Discord file
+                image_bytes = BytesIO()
+                img.save(image_bytes, format='PNG')
+                image_bytes.seek(0)
+
+                file = discord.File(fp=image_bytes, filename="daily_supply.png")
+                await interaction.followup.send(file=file)
+
+            except Exception as e:
+                # Fallback to text embed if image fails
+                embed = discord.Embed(
+                    title="� DAILY SUPPLY DROP",
+                    description=f"**+{gmp} GMP** and **+{xp} XP** received!",
+                    color=0x00ff00
+                )
+                embed.add_field(
+                    name="UPDATED STATS",
+                    value=f"```\nGMP: {member_data['gmp']:,}\nXP: {member_data['xp']:,}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
+                    inline=False
+                )
+                if rank_changed:
+                    embed.add_field(name="🎖️ PROMOTION!", value=f"New rank: **{new_rank}**", inline=False)
+                    if role_granted:
+                        embed.add_field(name="✓ ROLE ASSIGNED", value=f"Discord role **{role_granted}** granted!", inline=False)
+
+                embed.set_footer(text=f"Error generating image: {e}")
+                await interaction.followup.send(embed=embed)
         else:
             embed = discord.Embed(
                 title="⏰ ALREADY CLAIMED",
                 description="You've already claimed your daily bonus. Come back tomorrow!",
                 color=0xff9900
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="leaderboard", description="View the server leaderboard")
     @app_commands.describe(

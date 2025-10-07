@@ -110,6 +110,11 @@ class MemberData:
             correct_rank, correct_icon = calculate_rank_from_xp(existing_data.get("xp", 0))
             existing_data["rank"] = correct_rank
             existing_data["rank_icon"] = correct_icon
+
+            # Backward compatibility: add daily_streak if missing
+            if "daily_streak" not in existing_data:
+                existing_data["daily_streak"] = 0
+
             return existing_data
         else:
             # New member, create default data
@@ -123,6 +128,7 @@ class MemberData:
                 "reactions_given": 0,
                 "reactions_received": 0,
                 "last_daily": None,
+                "daily_streak": 0,
                 "tactical_words_used": 0,
                 "verified": False,
                 "total_tactical_words": 0,
@@ -206,12 +212,32 @@ class MemberData:
         Returns:
             Tuple of (success, gmp_bonus, xp_bonus, rank_changed, new_rank)
         """
-        from datetime import datetime
+        from datetime import datetime, timedelta
 
         member_data = self.get_member_data(member_id, guild_id)
         today = datetime.now().strftime('%Y-%m-%d')
+        last_daily = member_data.get("last_daily")
 
-        if member_data["last_daily"] != today:
+        if last_daily != today:
+            # Check if streak continues (claimed yesterday)
+            if last_daily:
+                last_daily_date = datetime.strptime(last_daily, '%Y-%m-%d')
+                today_date = datetime.strptime(today, '%Y-%m-%d')
+                days_diff = (today_date - last_daily_date).days
+
+                if days_diff == 1:
+                    # Streak continues!
+                    member_data["daily_streak"] = member_data.get("daily_streak", 0) + 1
+                elif days_diff > 1:
+                    # Streak broken, reset to 1
+                    member_data["daily_streak"] = 1
+                else:
+                    # Same day (shouldn't happen, but just in case)
+                    pass
+            else:
+                # First time claiming or no previous data
+                member_data["daily_streak"] = 1
+
             member_data["last_daily"] = today
 
             gmp_bonus = ACTIVITY_REWARDS["daily_bonus"]["gmp"]
@@ -220,6 +246,9 @@ class MemberData:
             rank_changed, new_rank = self.add_xp_and_gmp(
                 member_id, guild_id, gmp_bonus, xp_bonus
             )
+
+            # Schedule immediate save to ensure streak is persisted
+            self.schedule_save()
 
             return True, gmp_bonus, xp_bonus, rank_changed, new_rank
 

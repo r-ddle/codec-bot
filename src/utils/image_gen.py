@@ -6,6 +6,32 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 import io
 import requests
 import random
+import unicodedata
+
+# === UNICODE SANITIZATION ===
+def sanitize_username(username):
+    """
+    Sanitizes username to handle Unicode characters properly.
+    Keeps Unicode characters intact since we're now using robust system fonts.
+    Only removes control characters and excessive whitespace.
+    """
+    if not username:
+        return "UNKNOWN"
+
+    # Remove control characters but keep printable Unicode
+    cleaned = ''.join(char for char in username if unicodedata.category(char)[0] != 'C')
+
+    # Normalize whitespace
+    cleaned = ' '.join(cleaned.split())
+
+    # If nothing left after cleaning, use fallback
+    if not cleaned or cleaned.isspace():
+        return "AGENT"
+
+    # Limit length and trim
+    cleaned = cleaned.strip()[:30]
+
+    return cleaned if cleaned else "AGENT"
 
 # === AUTHENTIC MGS CODEC COLOR PALETTE ===
 CODEC_BG_DARK = (5, 25, 15)           # Deep dark green background
@@ -18,23 +44,76 @@ CODEC_BORDER_BRIGHT = (120, 255, 180) # Bright borders
 CODEC_STATIC_OVERLAY = (40, 160, 80)  # Static effect color
 
 # === FONT LOADING WITH FALLBACKS ===
-def load_font(size):
-    """Load Helvetica or clean sans-serif font with multiple fallbacks"""
-    fonts_to_try = [
-        "Helvetica.ttf",           # Helvetica (if you download it)
-        "HelveticaNeue.ttf",       # Helvetica Neue
-        "arial.ttf",               # Arial (similar to Helvetica)
-        "Arial.ttf",               # Arial alternate
-        "segoeui.ttf",             # Segoe UI (clean Windows font)
-        "calibri.ttf",             # Calibri (modern clean)
-        "consola.ttf",             # Consolas fallback
-        "cour.ttf",                # Courier New fallback
+def load_font(size, font_type="text"):
+    """
+    Load custom fonts from public/fonts directory with robust fallback
+    font_type: 'title', 'text', or 'numbers'
+
+    For 'text' type, uses system fonts (Helvetica/Arial) to avoid character support issues
+    """
+    import os
+
+    # For 'text' type, use reliable system fonts instead of custom fonts
+    # This prevents unsupported character issues
+    if font_type == "text":
+        fallback_fonts = [
+            "arial.ttf",
+            "Arial.ttf",
+            "arialbd.ttf",  # Arial Bold
+            "helvetica.ttf",
+            "Helvetica.ttf",
+            "segoeui.ttf",
+            "calibri.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",  # Windows direct path
+            "C:\\Windows\\Fonts\\Arial.ttf"
+        ]
+
+        for font_name in fallback_fonts:
+            try:
+                font = ImageFont.truetype(font_name, size)
+                return font
+            except Exception:
+                continue
+
+        # Last resort: default font
+        return ImageFont.load_default()
+
+    # For 'title' and 'numbers', try custom fonts first
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    fonts_dir = os.path.join(base_dir, "public", "fonts")
+
+    # Map font types to files
+    font_files = {
+        "title": "title.TTF",
+        "numbers": "numbers.ttf"
+    }
+
+    # Try custom font
+    if font_type in font_files:
+        custom_font_path = os.path.join(fonts_dir, font_files[font_type])
+        try:
+            font = ImageFont.truetype(custom_font_path, size)
+            return font
+        except Exception as e:
+            print(f"⚠️ Could not load custom font {font_type}: {e}")
+
+    # Fallback to system fonts
+    fallback_fonts = [
+        "arial.ttf",
+        "Arial.ttf",
+        "helvetica.ttf",
+        "Helvetica.ttf",
+        "segoeui.ttf",
+        "calibri.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\Arial.ttf"
     ]
 
-    for font_name in fonts_to_try:
+    for font_name in fallback_fonts:
         try:
-            return ImageFont.truetype(font_name, size)
-        except:
+            font = ImageFont.truetype(font_name, size)
+            return font
+        except Exception:
             continue
 
     return ImageFont.load_default()
@@ -235,7 +314,7 @@ def draw_stat_box(draw, x, y, label, value, font_label, font_value):
               fill=CODEC_GREEN_PRIMARY, width=1)
 
 # === MAIN GENERATOR ===
-def generate_rank_card(username, rank_badge, level, xp, xp_max, gmp,
+def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
                        avatar_url=None, message_count=0, voice_time=0,
                        leaderboard_pos=None):
     """
@@ -244,7 +323,7 @@ def generate_rank_card(username, rank_badge, level, xp, xp_max, gmp,
     Args:
         username: Display name
         rank_badge: Emoji or badge (e.g., "🎖️")
-        level: Rank level number
+        rank_name: Military rank name (e.g., "Captain", "FOXHOUND")
         xp: Current XP
         xp_max: XP needed for next level
         gmp: GMP (currency/points)
@@ -258,16 +337,19 @@ def generate_rank_card(username, rank_badge, level, xp, xp_max, gmp,
     """
     width, height = 1200, 450
 
+    # Sanitize username to handle unsupported Unicode characters
+    username = sanitize_username(username)
+
     # Create base with dark codec background
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
 
-    # Load fonts - INCREASED SIZES for better readability
-    font_title = load_font(42)      # Username - increased from 32
-    font_large = load_font(32)      # Stats values - increased from 24
-    font_medium = load_font(22)     # Labels - increased from 18
-    font_small = load_font(18)      # Secondary info - increased from 14
-    font_tiny = load_font(14)       # Footer - increased from 12
+    # Load fonts with custom font types
+    font_title = load_font(48, "title")      # Username - title font
+    font_large = load_font(36, "numbers")    # Stats values - numbers font
+    font_medium = load_font(24, "text")      # Labels - text font
+    font_small = load_font(20, "text")       # Secondary info - text font
+    font_tiny = load_font(16, "text")        # Footer - text font
 
     # === LEFT SIDE: AVATAR PANEL ===
     avatar_x = 30
@@ -307,9 +389,9 @@ def generate_rank_card(username, rank_badge, level, xp, xp_max, gmp,
     current_y += 30  # Increased from 25 for better spacing
 
     # === STAT DISPLAYS ===
-    # Row 1: Level and GMP - INCREASED SPACING for larger fonts
+    # Row 1: Rank Name and GMP - INCREASED SPACING for larger fonts
     stat_spacing = 240  # Increased from 200 to accommodate larger text
-    draw_stat_box(draw, info_x, current_y, "RANK LEVEL", f"Lv. {level}",
+    draw_stat_box(draw, info_x, current_y, "RANK", rank_name.upper(),
                  font_small, font_large)
     draw_stat_box(draw, info_x + stat_spacing, current_y, "GMP BALANCE",
                  f"{gmp:,}", font_small, font_large)

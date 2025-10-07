@@ -10,6 +10,8 @@ from config.constants import MGS_RANKS
 from config.settings import logger
 from utils.rank_system import get_rank_data_by_name, calculate_rank_from_xp
 from utils.role_manager import update_member_roles
+from utils.daily_supply_gen import generate_daily_supply_card
+from io import BytesIO
 
 
 class Admin(commands.Cog):
@@ -57,43 +59,73 @@ class Admin(commands.Cog):
 
             # Update Discord role
             role_updated = await update_member_roles(member, next_rank["name"])
-            new_roles = [role.name for role in member.roles if role.name in [r["role_name"] for r in MGS_RANKS if r["role_name"]]]
-
-            # Show results
-            embed = discord.Embed(
-                title=" RANK PROMOTION TEST",
-                description=f"Testing promotion system for {member.mention}",
-                color=0x00ff00
-            )
-
-            embed.add_field(
-                name="RANK CHANGE",
-                value=f"```\n{current_rank}  {next_rank['name']} {next_rank['icon']}\n```",
-                inline=False
-            )
-
-            embed.add_field(
-                name="ROLE CHANGE",
-                value=f"```\nOld Roles: {', '.join(old_roles) if old_roles else 'None'}\nNew Roles: {', '.join(new_roles) if new_roles else 'None'}\nUpdated: {' Yes' if role_updated else ' No'}\n```",
-                inline=False
-            )
-
-            embed.add_field(
-                name="XP ADJUSTMENT",
-                value=f"```\nOld XP: {current_xp}\nNew XP: {member_data['xp']}\nRequirement: {next_rank['required_xp']} XP\n```",
-                inline=False
-            )
-
-            embed.add_field(
-                name="TEST RESULTS",
-                value="**Role Assignment:** Discord roles granted based on XP level\n**System Status:** XP-based ranking working correctly",
-                inline=False
-            )
-
-            await ctx.send(embed=embed)
+            role_granted = next_rank["role_name"] if role_updated else None
 
             # Save the test changes
             await self.bot.member_data.save_data_async(force=True)
+
+            # Generate beautiful promotion image (simulates daily bonus with promotion)
+            async with ctx.typing():
+                try:
+                    img = generate_daily_supply_card(
+                        username=member.display_name,
+                        gmp_reward=200,  # Simulated daily reward
+                        xp_reward=50,    # Simulated daily reward
+                        current_gmp=member_data['gmp'],
+                        current_xp=member_data['xp'],
+                        current_rank=next_rank['name'],
+                        streak_days=1,  # Test with 1-day streak
+                        promoted=True,
+                        new_rank=next_rank['name'],
+                        role_granted=role_granted
+                    )
+
+                    # Convert to Discord file
+                    image_bytes = BytesIO()
+                    img.save(image_bytes, format='PNG')
+                    image_bytes.seek(0)
+
+                    file = discord.File(fp=image_bytes, filename="test_promotion.png")
+
+                    # Send text message with image
+                    await ctx.send(
+                        f"✅ **TEST PROMOTION COMPLETE**\n"
+                        f"🎖️ {current_rank} → {next_rank['name']} {next_rank['icon']}\n"
+                        f"💰 New XP: {member_data['xp']:,} (was {current_xp:,})\n"
+                        f"{'✓ Discord role granted' if role_updated else '⚠️ Role not granted'}",
+                        file=file
+                    )
+
+                except Exception as e:
+                    # Fallback to embed if image fails
+                    new_roles = [role.name for role in member.roles if role.name in [r["role_name"] for r in MGS_RANKS if r["role_name"]]]
+
+                    embed = discord.Embed(
+                        title=" RANK PROMOTION TEST",
+                        description=f"Testing promotion system for {member.mention}",
+                        color=0x00ff00
+                    )
+
+                    embed.add_field(
+                        name="RANK CHANGE",
+                        value=f"```\n{current_rank}  {next_rank['name']} {next_rank['icon']}\n```",
+                        inline=False
+                    )
+
+                    embed.add_field(
+                        name="ROLE CHANGE",
+                        value=f"```\nOld Roles: {', '.join(old_roles) if old_roles else 'None'}\nNew Roles: {', '.join(new_roles) if new_roles else 'None'}\nUpdated: {' Yes' if role_updated else ' No'}\n```",
+                        inline=False
+                    )
+
+                    embed.add_field(
+                        name="XP ADJUSTMENT",
+                        value=f"```\nOld XP: {current_xp}\nNew XP: {member_data['xp']}\nRequirement: {next_rank['required_xp']} XP\n```",
+                        inline=False
+                    )
+
+                    embed.set_footer(text=f"⚠️ Image generation failed: {e}")
+                    await ctx.send(embed=embed)
 
         except Exception as e:
             await ctx.send(f" Test failed: {str(e)}")
@@ -591,6 +623,150 @@ Lieutenant: 750 XP
         )
         embed.add_field(name="New Balance", value=f"{member_data['gmp']} GMP", inline=False)
         await ctx.send(embed=embed)
+
+    # === TESTING COMMANDS (Commander Role Only) ===
+    @commands.command(name='test_daily')
+    @commands.has_permissions(administrator=True)
+    async def test_daily(self, ctx, member: Optional[discord.Member] = None):
+        """Reset daily bonus cooldown for testing (Commanders only)."""
+        target = member or ctx.author
+
+        try:
+            member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+
+            # Reset last daily timestamp
+            member_data['last_daily'] = None
+
+            # Force immediate save
+            await self.bot.member_data.save_data_async(force=True)
+
+            current_streak = member_data.get('daily_streak', 0)
+
+            embed = discord.Embed(
+                title="✅ DAILY COOLDOWN RESET",
+                description=f"Reset daily bonus cooldown for {target.mention}",
+                color=0x00ff00
+            )
+            embed.add_field(name="Status", value="Can now claim !daily immediately", inline=False)
+            embed.add_field(name="Current Streak", value=f"{current_streak} days", inline=False)
+            embed.set_footer(text="Testing command - Administrators only")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error resetting cooldown: {e}")
+            logger.error(f"Error in test_daily: {e}")
+
+    @commands.command(name='test_supply')
+    @commands.has_permissions(administrator=True)
+    async def test_supply(self, ctx, member: Optional[discord.Member] = None):
+        """Reset supply drop cooldown for testing (Commanders only)."""
+        target = member or ctx.author
+
+        try:
+            member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+
+            # Reset last supply drop timestamp
+            if 'last_supply_drop' in member_data:
+                member_data['last_supply_drop'] = None
+                self.bot.member_data.schedule_save()
+
+                embed = discord.Embed(
+                    title="✅ SUPPLY DROP COOLDOWN RESET",
+                    description=f"Reset supply drop cooldown for {target.mention}",
+                    color=0x00ff00
+                )
+                embed.add_field(name="Status", value="Can now claim supply drop immediately", inline=False)
+                embed.set_footer(text="Testing command - Commanders only")
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(f"⚠️ {target.mention} doesn't have supply drop tracking enabled")
+
+        except Exception as e:
+            await ctx.send(f"❌ Error resetting cooldown: {e}")
+            logger.error(f"Error in test_supply: {e}")
+
+    @commands.command(name='force_daily')
+    @commands.has_permissions(administrator=True)
+    async def force_daily(self, ctx, member: Optional[discord.Member] = None):
+        """Force grant daily bonus bypassing cooldown (Commanders only)."""
+        target = member or ctx.author
+
+        try:
+            member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+
+            # Grant rewards
+            gmp_reward = 200
+            xp_reward = 50
+
+            member_data['gmp'] = member_data.get('gmp', 0) + gmp_reward
+            member_data['xp'] = member_data.get('xp', 0) + xp_reward
+            self.bot.member_data.schedule_save()
+
+            embed = discord.Embed(
+                title="💰 FORCED DAILY BONUS",
+                description=f"Force-granted daily bonus to {target.mention}",
+                color=0xffaa00
+            )
+            embed.add_field(name="GMP Granted", value=f"+{gmp_reward} GMP", inline=True)
+            embed.add_field(name="XP Granted", value=f"+{xp_reward} XP", inline=True)
+            embed.add_field(
+                name="New Totals",
+                value=f"GMP: {member_data['gmp']:,} | XP: {member_data['xp']:,}",
+                inline=False
+            )
+            embed.set_footer(text="Testing command - Commanders only (bypassed cooldown)")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error forcing daily: {e}")
+            logger.error(f"Error in force_daily: {e}")
+
+    @commands.command(name='test_streak')
+    @commands.has_permissions(administrator=True)
+    async def test_streak(self, ctx, member: Optional[discord.Member] = None, days: int = 7):
+        """Set daily streak to specific value for testing (Commanders only)."""
+        target = member or ctx.author
+
+        if days < 0:
+            await ctx.send("❌ Streak days must be non-negative")
+            return
+
+        try:
+            member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+
+            # Set streak
+            member_data['daily_streak'] = days
+
+            # Force immediate save
+            await self.bot.member_data.save_data_async(force=True)
+
+            # Determine milestone
+            if days >= 100:
+                milestone = "🏆 LEGENDARY STREAK"
+            elif days >= 30:
+                milestone = "⭐ ELITE STREAK"
+            elif days >= 7:
+                milestone = "🔥 HOT STREAK"
+            else:
+                milestone = f"DAY {days} OPERATION"
+
+            embed = discord.Embed(
+                title="✅ STREAK MODIFIED",
+                description=f"Set daily streak for {target.mention}",
+                color=0x00ff00
+            )
+            embed.add_field(name="Streak Days", value=f"{days} days", inline=True)
+            embed.add_field(name="Milestone", value=milestone, inline=True)
+            embed.add_field(name="Verification", value=f"Saved: {member_data.get('daily_streak', 0)} days", inline=False)
+            embed.set_footer(text="Testing command - Administrators only")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error setting streak: {e}")
+            logger.error(f"Error in test_streak: {e}")
+
+    # REMOVED: test_supply_anim command
+    # Animation feature disabled to reduce server load and improve performance
 
 
 async def setup(bot):

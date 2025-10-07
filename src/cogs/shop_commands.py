@@ -348,7 +348,7 @@ class ShopCommands(commands.Cog):
             img = generate_rank_card(
                 username=target.display_name,
                 rank_badge=current_rank_icon,
-                level=current_rank_index + 1,
+                rank_name=current_rank_name,  # Pass actual rank name, not level number
                 xp=current_xp,
                 xp_max=xp_max,
                 gmp=current_gmp,
@@ -406,7 +406,7 @@ class ShopCommands(commands.Cog):
                 img = generate_rank_card(
                     username=target.display_name,
                     rank_badge=current_rank_icon,
-                    level=current_rank_index + 1,
+                    rank_name=current_rank_name,  # Pass actual rank name, not level number
                     xp=current_xp,
                     xp_max=xp_max,
                     gmp=current_gmp,

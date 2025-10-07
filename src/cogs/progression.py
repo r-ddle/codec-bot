@@ -11,6 +11,7 @@ from utils.formatters import format_number, make_progress_bar
 from utils.rank_system import get_rank_data_by_name, get_next_rank_info, MGS_RANKS
 from utils.role_manager import update_member_roles
 from utils.image_gen import generate_rank_card
+from utils.daily_supply_gen import generate_daily_supply_card
 
 
 class Progression(commands.Cog):
@@ -112,7 +113,7 @@ class Progression(commands.Cog):
                 img = generate_rank_card(
                     username=member.display_name,
                     rank_badge=current_rank_icon,
-                    level=current_rank_index + 1,
+                    rank_name=current_rank_name,  # Pass actual rank name, not level number
                     xp=current_xp,
                     xp_max=xp_max,
                     gmp=current_gmp,
@@ -221,32 +222,62 @@ class Progression(commands.Cog):
         success, gmp, xp, rank_changed, new_rank = self.bot.member_data.award_daily_bonus(member_id, guild_id)
 
         if success:
-            embed = discord.Embed(
-                title=" DAILY SUPPLY DROP",
-                description=f"**+{format_number(gmp)} GMP** and **+{format_number(xp)} XP** received!",
-                color=0x00ff00
-            )
-
             # Get updated member data
             member_data = self.bot.member_data.get_member_data(member_id, guild_id)
 
-            embed.add_field(
-                name="UPDATED STATS",
-                value=f"```\nGMP: {format_number(member_data['gmp'])}\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\n```",
-                inline=False
-            )
+            # Get streak info
+            streak_days = member_data.get('daily_streak', 1)
 
+            # Determine role granted if promoted
+            role_granted = None
             if rank_changed:
                 role_updated = await update_member_roles(ctx.author, new_rank)
-                embed.add_field(name=" PROMOTION!", value=f"New rank: **{new_rank}**", inline=False)
-
                 if role_updated:
                     rank_data = get_rank_data_by_name(new_rank)
-                    role_name = rank_data.get("role_name", new_rank)
-                    embed.add_field(name=" ROLE ASSIGNED", value=f"Discord role **{role_name}** granted!", inline=False)
+                    role_granted = rank_data.get("role_name", new_rank)
 
-            embed.set_footer(text="Come back tomorrow for another supply drop!")
-            await ctx.send(embed=embed)
+            # Generate MGS Codec-style supply drop image
+            try:
+                img = generate_daily_supply_card(
+                    username=ctx.author.display_name,
+                    gmp_reward=gmp,
+                    xp_reward=xp,
+                    current_gmp=member_data['gmp'],
+                    current_xp=member_data['xp'],
+                    current_rank=member_data['rank'],
+                    streak_days=streak_days,
+                    promoted=rank_changed,
+                    new_rank=new_rank if rank_changed else None,
+                    role_granted=role_granted
+                )
+
+                # Convert to Discord file
+                image_bytes = BytesIO()
+                img.save(image_bytes, format='PNG')
+                image_bytes.seek(0)
+
+                file = discord.File(fp=image_bytes, filename="daily_supply.png")
+                await ctx.send(file=file)
+
+            except Exception as e:
+                # Fallback to text embed if image fails
+                embed = discord.Embed(
+                    title="📦 DAILY SUPPLY DROP",
+                    description=f"**+{format_number(gmp)} GMP** and **+{format_number(xp)} XP** received!",
+                    color=0x00ff00
+                )
+                embed.add_field(
+                    name="UPDATED STATS",
+                    value=f"```\nGMP: {format_number(member_data['gmp'])}\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
+                    inline=False
+                )
+                if rank_changed:
+                    embed.add_field(name="🎖️ PROMOTION!", value=f"New rank: **{new_rank}**", inline=False)
+                    if role_granted:
+                        embed.add_field(name="✓ ROLE ASSIGNED", value=f"Discord role **{role_granted}** granted!", inline=False)
+
+                embed.set_footer(text=f"Error generating image: {e}")
+                await ctx.send(embed=embed)
 
             # Force save
             await self.bot.member_data.save_data_async(force=True)

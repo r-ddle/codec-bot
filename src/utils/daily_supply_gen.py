@@ -5,6 +5,34 @@
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageSequence
 import io
 import random
+import unicodedata
+
+# === UNICODE SANITIZATION ===
+def sanitize_username(username):
+    """
+    Sanitizes username to remove unsupported Unicode characters.
+    Converts to ASCII-safe version while preserving readability.
+    """
+    if not username:
+        return "UNKNOWN"
+
+    # First, normalize Unicode (decompose accented characters)
+    normalized = unicodedata.normalize('NFKD', username)
+
+    # Remove non-ASCII characters, keep only printable ASCII
+    ascii_safe = ''.join(char for char in normalized if ord(char) < 128 and char.isprintable())
+
+    # If nothing left, use a fallback
+    if not ascii_safe or ascii_safe.isspace():
+        # Try to get a basic representation
+        ascii_safe = ''.join(char if ord(char) < 128 else '?' for char in username)
+        if not ascii_safe.strip('?').strip():
+            return "AGENT"
+
+    # Limit length and clean up
+    ascii_safe = ascii_safe.strip()[:30]
+
+    return ascii_safe if ascii_safe else "AGENT"
 
 # === AUTHENTIC MGS CODEC COLOR PALETTE ===
 CODEC_BG_DARK = (5, 25, 15)
@@ -24,31 +52,41 @@ STREAK_MILESTONE_30 = (255, 140, 0)
 STREAK_MILESTONE_100 = (255, 50, 50)
 
 # === FONT LOADING ===
-def load_font(size, bold=False):
-    """Load readable fonts with Helvetica priority"""
-    fonts_to_try = [
+def load_font(size, font_type="text"):
+    """
+    Load custom fonts from public/fonts directory
+    font_type: 'title', 'text', or 'numbers'
+    """
+    import os
+
+    # Get absolute path to fonts directory
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    fonts_dir = os.path.join(base_dir, "public", "fonts")
+
+    # Map font types to files
+    font_files = {
+        "title": "title.TTF",
+        "text": "text.ttf",
+        "numbers": "numbers.ttf"
+    }
+
+    # Try custom font first
+    if font_type in font_files:
+        custom_font_path = os.path.join(fonts_dir, font_files[font_type])
+        try:
+            return ImageFont.truetype(custom_font_path, size)
+        except Exception as e:
+            print(f"⚠️ Could not load custom font {font_type}: {e}")
+
+    # Fallback fonts
+    fallback_fonts = [
         "arial.ttf",
         "Arial.ttf",
         "helvetica.ttf",
-        "Helvetica.ttf",
-        "DejaVuSans.ttf",
-        "LiberationSans-Regular.ttf",
-        "FreeSans.ttf"
+        "Helvetica.ttf"
     ]
 
-    bold_fonts = [
-        "arialbd.ttf",
-        "Arial-Bold.ttf",
-        "helveticabd.ttf",
-        "Helvetica-Bold.ttf",
-        "DejaVuSans-Bold.ttf",
-        "LiberationSans-Bold.ttf",
-        "FreeSans-Bold.ttf"
-    ]
-
-    font_list = bold_fonts if bold else fonts_to_try
-
-    for font_name in font_list:
+    for font_name in fallback_fonts:
         try:
             return ImageFont.truetype(font_name, size)
         except:
@@ -300,19 +338,23 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
     Returns:
         PIL Image object
     """
-    width, height = 900, 500
+    # Sanitize username to handle unsupported Unicode characters
+    username = sanitize_username(username)
+
+    # Increase height to 650 to prevent cramping
+    width, height = 900, 650
 
     # Create base
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
 
-    # Load fonts (larger, more readable)
-    font_title = load_font(42, bold=True)
-    font_large = load_font(32, bold=True)
-    font_medium = load_font(24, bold=True)
-    font_normal = load_font(22)
-    font_small = load_font(18)
-    font_tiny = load_font(14)
+    # Load fonts with custom font types
+    font_title = load_font(48, "title")      # Title font for header
+    font_large = load_font(36, "numbers")    # Numbers font for stats
+    font_medium = load_font(28, "text")      # Text font for labels
+    font_normal = load_font(24, "text")      # Text font for normal text
+    font_small = load_font(20, "text")       # Text font for small text
+    font_tiny = load_font(16, "text")        # Text font for tiny text
 
     # === HEADER ===
     header_y = 25
@@ -399,8 +441,12 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
 
     return base
 
-# === GIF ANIMATION GENERATOR ===
-def generate_daily_supply_animated(username, gmp_reward, xp_reward,
+# === GIF ANIMATION REMOVED ===
+# Animation feature removed to reduce server load and improve performance
+# Static images only for optimal hosting
+
+# DEPRECATED: generate_daily_supply_animated()
+def generate_daily_supply_animated_DEPRECATED(username, gmp_reward, xp_reward,
                                   current_gmp, current_xp, current_rank,
                                   streak_days=1, promoted=False, new_rank=None,
                                   role_granted=None, output_path="daily_drop.gif"):
@@ -496,7 +542,7 @@ def generate_daily_supply_animated(username, gmp_reward, xp_reward,
                  fill=CODEC_GREEN_DIM, font=font_tiny)
 
         draw.text((width - 320, footer_y),
-                 "©1987 2001 Konami Computer Entertainment",
+                 "©2025 THE PHANTOM'S INN",
                  fill=CODEC_GREEN_DIM, font=font_tiny)
 
         # === FRAME ===
@@ -570,18 +616,7 @@ if __name__ == "__main__":
     img3.save("daily_milestone.png")
     print("✅ Milestone daily saved as 'daily_milestone.png'")
 
-    # Test 4: Animated GIF (promotion)
-    generate_daily_supply_animated(
-        username="Revolver Ocelot",
-        gmp_reward=200,
-        xp_reward=50,
-        current_gmp=2840,
-        current_xp=1750,
-        current_rank="Corporal",
-        streak_days=5,
-        promoted=True,
-        new_rank="Corporal",
-        role_granted="Corporal",
-        output_path="daily_animated.gif"
-    )
-    print("✅ Animated GIF saved as 'daily_animated.gif'")
+    # Test 4: Animated GIF (REMOVED - too resource intensive)
+    # Animation feature disabled to reduce server load
+    print("✅ All test images generated successfully!")
+    print("ℹ️  Animation feature disabled for server optimization")
