@@ -66,7 +66,7 @@ def load_font(size, font_type="text"):
         for font_name in fallback_fonts:
             try:
                 return ImageFont.truetype(font_name, size)
-            except:
+            except (OSError, IOError):
                 continue
         return ImageFont.load_default()
 
@@ -95,7 +95,7 @@ def load_font(size, font_type="text"):
     for font_name in fallback_fonts:
         try:
             return ImageFont.truetype(font_name, size)
-        except:
+        except (OSError, IOError):
             continue
 
     return ImageFont.load_default()

@@ -212,10 +212,11 @@ class MemberData:
         Returns:
             Tuple of (success, gmp_bonus, xp_bonus, rank_changed, new_rank)
         """
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         member_data = self.get_member_data(member_id, guild_id)
-        today = datetime.now().strftime('%Y-%m-%d')
+        # Use UTC to avoid timezone issues
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         last_daily = member_data.get("last_daily")
 
         if last_daily != today:

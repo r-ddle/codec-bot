@@ -70,6 +70,13 @@ class ShopCommands(commands.Cog):
     @commands.command(name='shop')
     async def shop_text(self, ctx):
         """Open the interactive shop (text command)"""
+        # Rate limiting
+        from utils.rate_limiter import rate_limiter
+        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'shop')
+        if not can_use:
+            await ctx.send(f"⏳ Please wait {remaining:.0f}s before opening shop again.", delete_after=5)
+            return
+
         if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
             await ctx.send("❌ The shop is currently disabled. Contact an administrator.")
             return
@@ -168,6 +175,13 @@ class ShopCommands(commands.Cog):
     @commands.command(name='buy')
     async def buy_text(self, ctx, item_id: int):
         """Purchase an item (text command)"""
+        # Rate limiting
+        from utils.rate_limiter import rate_limiter
+        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'buy')
+        if not can_use:
+            await ctx.send(f"⏳ Please wait {remaining:.0f}s before making another purchase.", delete_after=5)
+            return
+
         if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
             await ctx.send("❌ The shop is currently disabled.")
             return

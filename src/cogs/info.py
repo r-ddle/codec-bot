@@ -7,11 +7,12 @@ import asyncio
 import time
 
 from config.constants import ACTIVITY_REWARDS
+from config.settings import logger
 
 
 class Info(commands.Cog):
     """Commands for bot information and help."""
-    
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -24,18 +25,18 @@ class Info(commands.Cog):
             f"I read you, {ctx.author.name}.",
             "Mission briefing incoming...",
         ]
-        
+
         msg = await ctx.send(messages[0])
         for i in range(1, len(messages)):
             await asyncio.sleep(1.5)
             await msg.edit(content='\n'.join(messages[:i+1]))
-        
+
         self.bot.codec_conversations[ctx.channel.id] = {
             'active': True,
             'start_time': time.time(),
             'messages': 0
         }
-        
+
         await asyncio.sleep(2)
         await ctx.send("**You can now respond to continue the codec conversation...**")
 
@@ -45,20 +46,20 @@ class Info(commands.Cog):
         if not message:
             await ctx.send("**Usage:** `!tactical_test <your message>`\n**Example:** `!tactical_test infiltrate the enemy base`")
             return
-        
+
         tactical_count = self.bot.check_tactical_words(message)
-        
+
         embed = discord.Embed(
             title=" TACTICAL ANALYSIS",
             color=0x00ff00 if tactical_count > 0 else 0xff0000
         )
-        
+
         embed.add_field(name="MESSAGE", value=f"```\n{message}\n```", inline=False)
-        
+
         if tactical_count > 0:
             potential_gmp = tactical_count * ACTIVITY_REWARDS["tactical_word"]["gmp"]
             potential_xp = tactical_count * ACTIVITY_REWARDS["tactical_word"]["xp"]
-            
+
             embed.add_field(
                 name=" TACTICAL WORDS DETECTED",
                 value=f"**Words Found:** {tactical_count}\n**Bonus:** +{potential_gmp} GMP, +{potential_xp} XP",
@@ -70,7 +71,7 @@ class Info(commands.Cog):
                 value="Try using military, stealth, or MGS-related terms.",
                 inline=False
             )
-        
+
         await ctx.send(embed=embed)
 
     @commands.command(name='help')
@@ -81,7 +82,7 @@ class Info(commands.Cog):
             description="```\n> XP-BASED RANKING SYSTEM ACTIVE\n> SECURITY STATUS:  SECURE\n> TYPE: COMPREHENSIVE MANUAL\n```",
             color=0x599cff
         )
-        
+
         # Basic Operations
         embed.add_field(
             name=" BASIC OPERATIONS",
@@ -95,14 +96,14 @@ class Info(commands.Cog):
 ```""",
             inline=False
         )
-        
+
         # Ranking System
         embed.add_field(
             name=" XP-BASED RANKING GUIDE",
             value="""```
 EARN DISCORD ROLES BY REACHING XP LEVELS:
  Private: 100 XP
- Specialist: 200 XP  
+ Specialist: 200 XP
  Corporal: 350 XP
  Sergeant: 500 XP
  Lieutenant: 750 XP
@@ -111,25 +112,25 @@ EARN DISCORD ROLES BY REACHING XP LEVELS:
  Colonel: 2,500 XP
  FOXHOUND: 4,000 XP
 
- AUTOMATIC: Roles assigned when you 
+ AUTOMATIC: Roles assigned when you
 reach the XP requirement!
 ```""",
             inline=False
         )
-        
+
         # Leaderboard
         embed.add_field(
             name=" LEADERBOARDS",
             value="""```
 !leaderboard [category] - View rankings
-  Categories: 
+  Categories:
   xp, gmp, tactical, messages
-  
+
 Example: !lb xp
 ```""",
             inline=False
         )
-        
+
         # Admin Commands
         if ctx.author.guild_permissions.kick_members or ctx.author.guild_permissions.administrator:
             embed.add_field(
@@ -145,7 +146,7 @@ Example: !lb xp
 ```""",
                 inline=False
             )
-        
+
         # Progression Guide
         embed.add_field(
             name=" HOW TO EARN XP",
@@ -153,7 +154,7 @@ Example: !lb xp
  Send messages (+3 XP every 30 sec)
  Voice activity (+2 XP per minute)
  Give reactions (+1 XP)
- Receive reactions (+2 XP) 
+ Receive reactions (+2 XP)
  Daily bonus (+50 XP)
  Tactical words (+8 XP each)
 
@@ -162,7 +163,7 @@ GMP is for stats and activities.
 ```""",
             inline=False
         )
-        
+
         embed.set_footer(text=" XP-Based Ranking: Earn Discord roles through progression!")
         await ctx.send(embed=embed)
 
@@ -174,7 +175,7 @@ GMP is for stats and activities.
             description="Available operations for all personnel:",
             color=0x599cff
         )
-        
+
         embed.add_field(
             name=" BASIC COMMANDS",
             value="""```
@@ -187,7 +188,7 @@ GMP is for stats and activities.
 ```""",
             inline=False
         )
-        
+
         # Show moderation commands if user has permissions
         if ctx.author.guild_permissions.kick_members or ctx.author.guild_permissions.manage_messages:
             embed.add_field(
@@ -199,7 +200,7 @@ GMP is for stats and activities.
 ```""",
                 inline=False
             )
-        
+
         # Show admin commands if user has admin permissions
         if ctx.author.guild_permissions.administrator:
             embed.add_field(
@@ -211,7 +212,7 @@ GMP is for stats and activities.
 ```""",
                 inline=False
             )
-        
+
         embed.add_field(
             name=" XP-BASED RANKING",
             value="""```
@@ -227,7 +228,7 @@ Earn Discord roles automatically!
 ```""",
             inline=False
         )
-        
+
         embed.add_field(
             name=" HOW TO EARN XP",
             value="""```
@@ -241,9 +242,9 @@ Ranking based on XP only!
 ```""",
             inline=False
         )
-        
+
         embed.set_footer(text="Use !help for complete command manual")
-        
+
         await ctx.send(embed=embed)
 
 

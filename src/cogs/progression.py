@@ -23,6 +23,13 @@ class Progression(commands.Cog):
     @commands.command(name='gmp')
     async def gmp(self, ctx):
         """Check GMP balance, rank, and stats."""
+        # Rate limiting
+        from utils.rate_limiter import rate_limiter
+        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'gmp')
+        if not can_use:
+            await ctx.send(f"⏳ Please wait {remaining:.0f}s before using this command again.", delete_after=5)
+            return
+
         member_id = ctx.author.id
         guild_id = ctx.guild.id
         member_data = self.bot.member_data.get_member_data(member_id, guild_id)
@@ -216,6 +223,13 @@ class Progression(commands.Cog):
     @commands.command(name='daily')
     async def daily(self, ctx):
         """Claim daily bonus."""
+        # Rate limiting
+        from utils.rate_limiter import rate_limiter
+        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'daily')
+        if not can_use:
+            await ctx.send(f"⏳ Please wait {remaining:.0f}s before checking daily bonus again.")
+            return
+
         member_id = ctx.author.id
         guild_id = ctx.guild.id
 

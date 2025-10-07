@@ -206,18 +206,15 @@ class ShopSystem:
                 if inventory_item['expires_at'] and inventory_item['expires_at'] < datetime.now():
                     return False, "Item has expired"
 
-                # Check if member already has an active booster of this type
-                existing = await conn.fetchval('''
-                    SELECT EXISTS(
-                        SELECT 1 FROM active_boosters
-                        WHERE member_id = $1 AND guild_id = $2
-                          AND booster_type = $3
-                          AND expires_at > CURRENT_TIMESTAMP
-                    )
-                ''', member_id, guild_id, inventory_item['item_type'])
+                # Check if member already has ANY active booster (prevent stacking exploit)
+                existing_count = await conn.fetchval('''
+                    SELECT COUNT(*) FROM active_boosters
+                    WHERE member_id = $1 AND guild_id = $2
+                      AND expires_at > CURRENT_TIMESTAMP
+                ''', member_id, guild_id)
 
-                if existing:
-                    return False, f"You already have an active **{inventory_item['name']}**!"
+                if existing_count > 0:
+                    return False, "❌ You already have an active XP booster! Only one booster can be active at a time."
 
                 # Activate booster
                 expires_at = datetime.now() + timedelta(hours=inventory_item['duration_hours'])

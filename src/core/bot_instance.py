@@ -5,8 +5,9 @@ import discord
 from discord.ext import tasks, commands
 import random
 import re
+import time
 from typing import Dict, Any
-from config.settings import COMMAND_PREFIX, logger, ALERT_CHECK_INTERVAL, VOICE_TRACK_INTERVAL, BACKUP_INTERVAL, AUTO_SAVE_INTERVAL, TACTICAL_BONUS_MAX, FEATURE_FLAGS
+from config.settings import COMMAND_PREFIX, logger, ALERT_CHECK_INTERVAL, VOICE_TRACK_INTERVAL, BACKUP_INTERVAL, AUTO_SAVE_INTERVAL, TACTICAL_BONUS_MAX, FEATURE_FLAGS, CODEC_CONVERSATION_TIMEOUT
 from config.constants import MGS_CODEC_SOUNDS, MGS_QUOTES, TACTICAL_WORDS, ACTIVITY_REWARDS
 from database.member_data import MemberData
 from database.neon_db import NeonDatabase
@@ -36,6 +37,9 @@ class MGSBot(commands.Bot):
         self.remove_command('help')  # Remove default help to use custom one
         self.codec_conversations: Dict[int, Dict[str, Any]] = {}
 
+        # Track last cleanup time for codec conversations
+        self._last_codec_cleanup = 0
+
     async def setup_hook(self):
         """Initialize bot tasks and sync slash commands."""
         # Connect to Neon database
@@ -51,6 +55,7 @@ class MGSBot(commands.Bot):
         self.track_voice_activity.start()
         self.backup_data.start()
         self.auto_save_data.start()
+        self.cleanup_rate_limits.start()
 
         try:
             synced = await self.tree.sync()
@@ -60,7 +65,21 @@ class MGSBot(commands.Bot):
 
     @tasks.loop(minutes=ALERT_CHECK_INTERVAL)
     async def check_alerts(self):
-        """Random codec calls to general channel."""
+        """Random codec calls to general channel and cleanup old conversations."""
+        # Cleanup old codec conversations (prevent memory leak)
+        current_time = time.time()
+        if current_time - self._last_codec_cleanup > 3600:  # Cleanup every hour
+            expired_channels = [
+                channel_id for channel_id, data in self.codec_conversations.items()
+                if current_time - data.get('start_time', 0) > CODEC_CONVERSATION_TIMEOUT
+            ]
+            for channel_id in expired_channels:
+                del self.codec_conversations[channel_id]
+            if expired_channels:
+                logger.info(f"Cleaned up {len(expired_channels)} expired codec conversations")
+            self._last_codec_cleanup = current_time
+
+        # Random codec alerts
         for guild in self.guilds:
             if random.random() < 0.2:
                 general = discord.utils.get(guild.text_channels, name='general')
@@ -77,7 +96,8 @@ class MGSBot(commands.Bot):
                 for member in voice_channel.members:
                     if member.bot:
                         continue
-                    if not member.voice.self_deaf and not member.voice.self_mute:
+                    # Award XP only if NOT deafened or muted (active participation)
+                    if not member.voice.self_deaf and not member.voice.self_mute and not member.voice.deaf and not member.voice.mute:
                         self.member_data.add_xp_and_gmp(
                             member.id, guild.id,
                             ACTIVITY_REWARDS["voice_minute"]["gmp"],
@@ -95,6 +115,12 @@ class MGSBot(commands.Bot):
         """Auto-save data if there are pending changes."""
         if self.member_data._pending_saves:
             await self.member_data.save_data_async()
+
+    @tasks.loop(hours=1)
+    async def cleanup_rate_limits(self):
+        """Cleanup old rate limit entries to prevent memory leaks."""
+        from utils.rate_limiter import rate_limiter
+        rate_limiter.cleanup_old_entries()
 
     def check_tactical_words(self, message_content: str) -> int:
         """

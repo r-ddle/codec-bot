@@ -67,21 +67,6 @@ class MessageEvents(commands.Cog):
         if hasattr(self.bot, 'shop_system'):
             xp_multiplier = await self.bot.shop_system.get_active_multiplier(member_id, guild_id)
 
-        # ALWAYS check for tactical words regardless of cooldown
-        tactical_count = self.bot.check_tactical_words(message.content)
-        if tactical_count > 0:
-            for _ in range(tactical_count):
-                tactical_xp = int(ACTIVITY_REWARDS["tactical_word"]["xp"] * xp_multiplier)
-                tactical_rank_changed, tactical_new_rank = self.bot.member_data.add_xp_and_gmp(
-                    member_id, guild_id,
-                    ACTIVITY_REWARDS["tactical_word"]["gmp"],
-                    tactical_xp,
-                    "tactical_word"
-                )
-                if tactical_rank_changed:
-                    rank_changed = True
-                    new_rank = tactical_new_rank
-
         # Message rewards only if cooldown has passed
         if current_time - last_msg_time > MESSAGE_COOLDOWN:
             member_data["last_message_time"] = current_time
@@ -98,6 +83,22 @@ class MessageEvents(commands.Cog):
             if message_rank_changed:
                 rank_changed = True
                 new_rank = message_new_rank
+
+            # Check for tactical words and award bonus (inside cooldown check to prevent double-dipping)
+            tactical_count = self.bot.check_tactical_words(message.content)
+            if tactical_count > 0:
+                # Award tactical bonus once per message, not per word (prevents exploitation)
+                tactical_xp = int(ACTIVITY_REWARDS["tactical_word"]["xp"] * xp_multiplier * tactical_count)
+                tactical_gmp = ACTIVITY_REWARDS["tactical_word"]["gmp"] * tactical_count
+                tactical_rank_changed, tactical_new_rank = self.bot.member_data.add_xp_and_gmp(
+                    member_id, guild_id,
+                    tactical_gmp,
+                    tactical_xp,
+                    "tactical_word"
+                )
+                if tactical_rank_changed:
+                    rank_changed = True
+                    new_rank = tactical_new_rank
 
             # ONLY notify if there's a genuine rank change
             if rank_changed and old_rank != new_rank:
