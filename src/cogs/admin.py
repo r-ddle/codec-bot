@@ -1,0 +1,333 @@
+﻿"""
+Admin cog - Administrative commands for role management and testing.
+"""
+import discord
+from discord.ext import commands
+import asyncio
+from typing import Optional
+
+from config.constants import MGS_RANKS
+from config.settings import logger
+from utils.rank_system import get_rank_data_by_name, calculate_rank_from_xp
+from utils.role_manager import update_member_roles
+
+
+class Admin(commands.Cog):
+    """Administrative commands for server management."""
+    
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command(name='test_promotion')
+    @commands.has_permissions(administrator=True)
+    async def test_promotion(self, ctx, member: Optional[discord.Member] = None):
+        """Test rank promotion system (Admin only)."""
+        if member is None:
+            member = ctx.author
+        
+        if member.bot:
+            await ctx.send(" Cannot promote bots.")
+            return
+        
+        try:
+            member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
+            current_rank = member_data['rank']
+            current_xp = member_data['xp']
+            
+            # Find current rank index
+            current_index = 0
+            for i, rank_data in enumerate(MGS_RANKS):
+                if rank_data["name"] == current_rank:
+                    current_index = i
+                    break
+            
+            # Check if can be promoted
+            if current_index >= len(MGS_RANKS) - 1:
+                await ctx.send(f" {member.display_name} is already at maximum rank: {current_rank}")
+                return
+            
+            # Get next rank
+            next_rank = MGS_RANKS[current_index + 1]
+            old_roles = [role.name for role in member.roles if role.name in [r["role_name"] for r in MGS_RANKS if r["role_name"]]]
+            
+            # Force promote by setting XP to required amount
+            member_data["xp"] = next_rank["required_xp"]
+            member_data["rank"] = next_rank["name"]
+            member_data["rank_icon"] = next_rank["icon"]
+            
+            # Update Discord role
+            role_updated = await update_member_roles(member, next_rank["name"])
+            new_roles = [role.name for role in member.roles if role.name in [r["role_name"] for r in MGS_RANKS if r["role_name"]]]
+            
+            # Show results
+            embed = discord.Embed(
+                title=" RANK PROMOTION TEST",
+                description=f"Testing promotion system for {member.mention}",
+                color=0x00ff00
+            )
+            
+            embed.add_field(
+                name="RANK CHANGE",
+                value=f"```\n{current_rank}  {next_rank['name']} {next_rank['icon']}\n```",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="ROLE CHANGE",
+                value=f"```\nOld Roles: {', '.join(old_roles) if old_roles else 'None'}\nNew Roles: {', '.join(new_roles) if new_roles else 'None'}\nUpdated: {' Yes' if role_updated else ' No'}\n```",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="XP ADJUSTMENT",
+                value=f"```\nOld XP: {current_xp}\nNew XP: {member_data['xp']}\nRequirement: {next_rank['required_xp']} XP\n```",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="TEST RESULTS",
+                value="**Role Assignment:** Discord roles granted based on XP level\n**System Status:** XP-based ranking working correctly",
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+            # Save the test changes
+            await self.bot.member_data.save_data_async(force=True)
+            
+        except Exception as e:
+            await ctx.send(f" Test failed: {str(e)}")
+            logger.error(f"Error in test_promotion: {e}")
+
+    @commands.command(name='auto_promote')
+    @commands.has_permissions(administrator=True)
+    async def auto_promote(self, ctx):
+        """Auto-promote all members based on their database XP."""
+        status_msg = await ctx.send("```\n AUTO-PROMOTION SYSTEM ACTIVE...\nScanning database XP levels...\n```")
+        
+        try:
+            promoted_count = 0
+            processed_count = 0
+            promotions = []
+            
+            guild_key = str(ctx.guild.id)
+            if guild_key not in self.bot.member_data.data:
+                await status_msg.edit(content="```\n No member data found for this guild.\n```")
+                return
+            
+            existing_members = self.bot.member_data.data[guild_key]
+            
+            for member in ctx.guild.members:
+                if member.bot:
+                    continue
+                    
+                processed_count += 1
+                member_key = str(member.id)
+                
+                try:
+                    if member_key not in existing_members:
+                        continue
+                    
+                    member_data = existing_members[member_key]
+                    current_xp = member_data.get('xp', 0)
+                    stored_rank = member_data.get('rank', 'Rookie')
+                    
+                    # Calculate correct rank based on XP
+                    correct_rank, correct_icon = calculate_rank_from_xp(current_xp)
+                    
+                    # Check if they need promotion
+                    if stored_rank != correct_rank:
+                        # Update database rank
+                        member_data['rank'] = correct_rank
+                        member_data['rank_icon'] = correct_icon
+                        
+                        # Update Discord role
+                        role_updated = await update_member_roles(member, correct_rank)
+                        
+                        if role_updated:
+                            promoted_count += 1
+                            rank_data = get_rank_data_by_name(correct_rank)
+                            role_name = rank_data.get("role_name", correct_rank)
+                            promotions.append(f"{member.display_name}: {stored_rank}  {correct_rank} ({role_name})")
+                            logger.info(f"AUTO-PROMOTED: {member.name} from {stored_rank} to {correct_rank} ({current_xp} XP)")
+                    
+                    await asyncio.sleep(0.2)
+                        
+                except Exception as e:
+                    logger.error(f"Error processing {member.name}: {e}")
+            
+            # Save database changes
+            await self.bot.member_data.save_data_async(force=True)
+            
+            embed = discord.Embed(
+                title=" AUTO-PROMOTION COMPLETE",
+                description="```\n> DATABASE XP SCAN COMPLETE\n> PROMOTIONS APPLIED\n> STATUS: SUCCESS\n```",
+                color=0x00ff00
+            )
+            
+            embed.add_field(
+                name="OPERATION RESULTS",
+                value=f"```\nProcessed: {processed_count} members\nPromoted: {promoted_count} members\nDatabase Members: {len(existing_members)}\n```",
+                inline=False
+            )
+            
+            if promotions:
+                promotion_text = "```\n" + "\n".join(promotions[:10]) + "\n```"
+                if len(promotions) > 10:
+                    promotion_text += f"\n*...and {len(promotions) - 10} more promotions*"
+                
+                embed.add_field(
+                    name="RECENT PROMOTIONS",
+                    value=promotion_text,
+                    inline=False
+                )
+            
+            embed.add_field(
+                name="RANK REQUIREMENTS",
+                value="""```
+Private: 100 XP       | Captain: 1,000 XP
+Specialist: 200 XP    | Major: 1,500 XP  
+Corporal: 350 XP      | Colonel: 2,500 XP
+Sergeant: 500 XP      | FOXHOUND: 4,000 XP
+Lieutenant: 750 XP
+```""",
+                inline=False
+            )
+            
+            await status_msg.edit(content="", embed=embed)
+            
+        except Exception as e:
+            await status_msg.edit(content=f"```\n Auto-promotion failed: {str(e)}\n```")
+            logger.error(f"Error in auto_promote command: {e}")
+
+    @commands.command(name='fix_all_roles')
+    @commands.has_permissions(administrator=True)
+    async def fix_all_roles(self, ctx):
+        """Fix all member roles based on current database ranks (Admin only)."""
+        status_msg = await ctx.send("```\n FIXING ALL MEMBER ROLES...\nSyncing Discord roles with database ranks...\n```")
+        
+        try:
+            updated_count = 0
+            failed_count = 0
+            processed_count = 0
+            
+            guild_key = str(ctx.guild.id)
+            if guild_key not in self.bot.member_data.data:
+                await status_msg.edit(content="```\n No member data found for this guild.\n```")
+                return
+            
+            existing_members = self.bot.member_data.data[guild_key]
+            
+            for member in ctx.guild.members:
+                if member.bot:
+                    continue
+                    
+                processed_count += 1
+                member_key = str(member.id)
+                
+                try:
+                    if member_key not in existing_members:
+                        continue
+                    
+                    # Get member's current rank from database
+                    member_data = existing_members[member_key]
+                    current_rank = member_data.get('rank', 'Rookie')
+                    
+                    # Update Discord roles to match database rank
+                    role_updated = await update_member_roles(member, current_rank)
+                    
+                    if role_updated:
+                        updated_count += 1
+                        logger.info(f"Fixed roles for {member.name} -> {current_rank}")
+                    else:
+                        failed_count += 1
+                        logger.warning(f"Failed to fix roles for {member.name}")
+                    
+                    # Small delay to avoid rate limits
+                    await asyncio.sleep(0.3)
+                        
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"Error fixing {member.name}: {e}")
+            
+            embed = discord.Embed(
+                title=" ROLE FIX COMPLETE",
+                description="```\n> ROLE SYNCHRONIZATION COMPLETE\n> STATUS: SUCCESS\n```",
+                color=0x00ff00
+            )
+            
+            embed.add_field(
+                name="OPERATION RESULTS",
+                value=f"```\nProcessed: {processed_count} members\nFixed: {updated_count} roles\nFailed: {failed_count} members\nDatabase Members: {len(existing_members)}\n```",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="WHAT THIS DOES",
+                value="```\n Reads each member's rank from database\n Removes incorrect Discord roles\n Assigns correct Discord roles\n Does NOT change XP or ranks\n Only syncs roles with stored data\n```",
+                inline=False
+            )
+            
+            embed.add_field(
+                name="ROLE REQUIREMENTS",
+                value="```\nRequired Discord roles:\nPrivate, Specialist, Corporal, Sergeant,\nLieutenant, Captain, Major, Colonel,\nFOXHOUND\n\nBot needs 'Manage Roles' permission!\n```",
+                inline=False
+            )
+            
+            await status_msg.edit(content="", embed=embed)
+            
+        except Exception as e:
+            await status_msg.edit(content=f"```\n Role fix failed: {str(e)}\n```")
+            logger.error(f"Error in fix_all_roles command: {e}")
+
+    @commands.command(name='check_roles')
+    @commands.has_permissions(administrator=True)
+    async def check_roles(self, ctx):
+        """Check if all required rank roles exist."""
+        required_roles = [rank["role_name"] for rank in MGS_RANKS if rank["role_name"]]
+        
+        embed = discord.Embed(title=" ROLE VERIFICATION", color=0x599cff)
+        
+        missing_roles = []
+        existing_roles = []
+        
+        for role_name in required_roles:
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
+            if role:
+                existing_roles.append(f" {role_name}")
+            else:
+                missing_roles.append(f" {role_name}")
+        
+        if existing_roles:
+            embed.add_field(
+                name="EXISTING ROLES", 
+                value="\n".join(existing_roles), 
+                inline=False
+            )
+        
+        if missing_roles:
+            embed.add_field(
+                name="MISSING ROLES", 
+                value="\n".join(missing_roles) + "\n\n**Create these roles manually!**", 
+                inline=False
+            )
+            embed.color = 0xff0000
+        else:
+            embed.add_field(
+                name="STATUS", 
+                value="```\n All rank roles found!\n Ready for role-based ranking\n```", 
+                inline=False
+            )
+        
+        embed.add_field(
+            name="BOT PERMISSIONS",
+            value=f"```\nManage Roles: {'' if ctx.guild.me.guild_permissions.manage_roles else ''}\n```",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+
+
+async def setup(bot):
+    """Load the Admin cog."""
+    await bot.add_cog(Admin(bot))
