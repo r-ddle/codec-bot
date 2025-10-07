@@ -19,15 +19,23 @@ cp .env.example .env
 
 3. Run the bot:
 ```bash
+cd src
 python bot.py
 ```
 
 ## 📁 Project Structure
 
 ```
-src/
-├── bot.py                    # Main entry point - starts the bot
-├── config/                   # Configuration & constants
+txrails/
+├── .env.example              # Environment template
+├── .gitignore                # Git ignore patterns
+├── README.md                 # This file
+├── MIGRATION_GUIDE.md        # Migration instructions
+├── requirements.txt          # Python dependencies
+├── member_data.json          # Bot database (generated)
+└── src/                      # Source code
+    ├── bot.py                # Main entry point - starts the bot
+    ├── config/               # Configuration & constants
     settings.py           # Environment variables & bot settings
     constants.py          # MGS ranks, rewards, tactical words
  core/                     # Bot core logic
@@ -124,7 +132,7 @@ from discord.ext import commands
 class MyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-    
+
     @commands.command(name='mycommand')
     async def my_command(self, ctx):
         await ctx.send("Hello!")
@@ -144,7 +152,7 @@ from discord.ext import commands
 class MyEvents(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-    
+
     @commands.Cog.listener()
     async def on_my_event(self, ...):
         # Handle event
