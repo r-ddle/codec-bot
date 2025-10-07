@@ -1,38 +1,30 @@
 # daily_supply_gen.py
 # Author: Tom & GitHub Copilot + Claude
-# MGS Codec-style Daily Supply Drop card generator with GIF animation support
+# MGS Codec-style Daily Supply Drop & Promotion card generator - REBUILT
 
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageSequence
-import io
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 import random
 import unicodedata
 
 # === UNICODE SANITIZATION ===
 def sanitize_username(username):
     """
-    Sanitizes username to remove unsupported Unicode characters.
-    Converts to ASCII-safe version while preserving readability.
+    Sanitizes username to handle Unicode characters properly.
+    Keeps Unicode characters intact since we're using robust system fonts.
     """
     if not username:
         return "UNKNOWN"
 
-    # First, normalize Unicode (decompose accented characters)
-    normalized = unicodedata.normalize('NFKD', username)
+    # Remove control characters but keep printable Unicode
+    cleaned = ''.join(char for char in username if unicodedata.category(char)[0] != 'C')
 
-    # Remove non-ASCII characters, keep only printable ASCII
-    ascii_safe = ''.join(char for char in normalized if ord(char) < 128 and char.isprintable())
+    # Normalize whitespace
+    cleaned = ' '.join(cleaned.split())
 
-    # If nothing left, use a fallback
-    if not ascii_safe or ascii_safe.isspace():
-        # Try to get a basic representation
-        ascii_safe = ''.join(char if ord(char) < 128 else '?' for char in username)
-        if not ascii_safe.strip('?').strip():
-            return "AGENT"
+    if not cleaned or cleaned.isspace():
+        return "AGENT"
 
-    # Limit length and clean up
-    ascii_safe = ascii_safe.strip()[:30]
-
-    return ascii_safe if ascii_safe else "AGENT"
+    return cleaned.strip()[:30] if cleaned else "AGENT"
 
 # === AUTHENTIC MGS CODEC COLOR PALETTE ===
 CODEC_BG_DARK = (5, 25, 15)
@@ -51,26 +43,42 @@ STREAK_MILESTONE_7 = (255, 200, 50)
 STREAK_MILESTONE_30 = (255, 140, 0)
 STREAK_MILESTONE_100 = (255, 50, 50)
 
-# === FONT LOADING ===
+# === FONT LOADING WITH FALLBACKS ===
 def load_font(size, font_type="text"):
     """
-    Load custom fonts from public/fonts directory
-    font_type: 'title', 'text', or 'numbers'
+    Load fonts with robust fallback system.
+    Uses system fonts for 'text' to ensure Unicode support.
     """
     import os
 
-    # Get absolute path to fonts directory
+    # For text, use reliable system fonts to avoid character issues
+    if font_type == "text":
+        fallback_fonts = [
+            "arial.ttf",
+            "Arial.ttf",
+            "helvetica.ttf",
+            "Helvetica.ttf",
+            "segoeui.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\Arial.ttf"
+        ]
+
+        for font_name in fallback_fonts:
+            try:
+                return ImageFont.truetype(font_name, size)
+            except:
+                continue
+        return ImageFont.load_default()
+
+    # For title and numbers, try custom fonts first
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     fonts_dir = os.path.join(base_dir, "public", "fonts")
 
-    # Map font types to files
     font_files = {
         "title": "title.TTF",
-        "text": "text.ttf",
         "numbers": "numbers.ttf"
     }
 
-    # Try custom font first
     if font_type in font_files:
         custom_font_path = os.path.join(fonts_dir, font_files[font_type])
         try:
@@ -78,12 +86,10 @@ def load_font(size, font_type="text"):
         except Exception as e:
             print(f"⚠️ Could not load custom font {font_type}: {e}")
 
-    # Fallback fonts
+    # Fallback to system fonts
     fallback_fonts = [
-        "arial.ttf",
-        "Arial.ttf",
-        "helvetica.ttf",
-        "Helvetica.ttf"
+        "arial.ttf", "Arial.ttf", "helvetica.ttf", "Helvetica.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf"
     ]
 
     for font_name in fallback_fonts:
@@ -260,25 +266,66 @@ def draw_streak_display(draw, x, y, streak_days, font_large, font_small):
                  fill=CODEC_GREEN_DIM, font=font_small)
 
 # === REWARD DISPLAY ===
-def draw_reward_box(draw, x, y, label, amount, color, font_label, font_amount):
-    """Draws a reward box with icon and amount"""
-    box_width = 200
-    box_height = 80
+def draw_reward_box(draw, x, y, label, amount, color, font_label, font_amount, width=280):
+    """Draws a clean reward display box"""
+    box_height = 100
 
-    # Box background with glow
-    draw.rectangle([x, y, x + box_width, y + box_height],
+    # Box background
+    draw.rectangle([x, y, x + width, y + box_height],
                   fill=CODEC_BG_MEDIUM, outline=color, width=3)
 
     # Label
-    draw.text((x + 10, y + 10), label, fill=CODEC_GREEN_DIM, font=font_label)
+    draw.text((x + 15, y + 12), label, fill=CODEC_GREEN_DIM, font=font_label)
 
-    # Amount (large and centered)
+    # Amount (large and prominent)
     amount_text = f"+{amount:,}"
     bbox = draw.textbbox((0, 0), amount_text, font=font_amount)
     text_width = bbox[2] - bbox[0]
-    text_x = x + (box_width - text_width) // 2
+    text_x = x + (width - text_width) // 2
 
-    draw.text((text_x, y + 35), amount_text, fill=color, font=font_amount)
+    draw.text((text_x, y + 45), amount_text, fill=color, font=font_amount)
+
+def draw_stat_display(draw, x, y, label, value, font_label, font_value):
+    """Draws a stat display"""
+    draw.text((x, y), label, fill=CODEC_GREEN_DIM, font=font_label)
+    draw.text((x, y + 28), str(value), fill=CODEC_GREEN_BRIGHT, font=font_value)
+
+    bbox = draw.textbbox((x, y + 28), str(value), font=font_value)
+    draw.line([(x, bbox[3] + 3), (bbox[2], bbox[3] + 3)],
+              fill=CODEC_GREEN_PRIMARY, width=2)
+
+def draw_codec_frame(draw, width, height):
+    """Draws codec frame with corner brackets"""
+    bracket_size = 35
+    thickness = 3
+
+    # Main border
+    draw.rectangle([5, 5, width - 5, height - 5],
+                   outline=CODEC_GREEN_PRIMARY, width=2)
+
+    # Corner brackets - Top Left
+    draw.line([(15, 15), (15 + bracket_size, 15)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
+    draw.line([(15, 15), (15, 15 + bracket_size)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
+
+    # Top Right
+    draw.line([(width - 15 - bracket_size, 15), (width - 15, 15)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
+    draw.line([(width - 15, 15), (width - 15, 15 + bracket_size)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
+
+    # Bottom Left
+    draw.line([(15, height - 15), (15 + bracket_size, height - 15)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
+    draw.line([(15, height - 15 - bracket_size), (15, height - 15)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
+
+    # Bottom Right
+    draw.line([(width - 15 - bracket_size, height - 15), (width - 15, height - 15)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
+    draw.line([(width - 15, height - 15 - bracket_size), (width - 15, height - 15)],
+              fill=CODEC_BORDER_BRIGHT, width=thickness)
 
 # === PROMOTION BANNER ===
 def draw_promotion_banner(draw, x, y, width, new_rank, font_large, font_medium, flash=False):
@@ -315,13 +362,15 @@ def draw_promotion_banner(draw, x, y, width, new_rank, font_large, font_medium, 
 
     draw.text((text_x2, y + 42), rank_text, fill=text_color, font=font_medium)
 
-# === MAIN GENERATOR (STATIC) ===
+# === MAIN GENERATOR: DAILY SUPPLY DROP ===
 def generate_daily_supply_card(username, gmp_reward, xp_reward,
                                current_gmp, current_xp, current_rank,
                                streak_days=1, promoted=False, new_rank=None,
                                role_granted=None):
     """
     Generates MGS Codec-style daily supply drop card
+
+    IMPROVED: Better spacing, cleaner layout, no cramping
 
     Args:
         username: Display name
@@ -338,105 +387,118 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
     Returns:
         PIL Image object
     """
-    # Sanitize username to handle unsupported Unicode characters
     username = sanitize_username(username)
 
-    # Increase height to 650 to prevent cramping
-    width, height = 900, 650
+    # Optimized dimensions for better spacing
+    width, height = 1000, 600
 
-    # Create base
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
 
-    # Load fonts with custom font types
-    font_title = load_font(48, "title")      # Title font for header
-    font_large = load_font(36, "numbers")    # Numbers font for stats
-    font_medium = load_font(28, "text")      # Text font for labels
-    font_normal = load_font(24, "text")      # Text font for normal text
-    font_small = load_font(20, "text")       # Text font for small text
-    font_tiny = load_font(16, "text")        # Text font for tiny text
+    # Load fonts
+    font_title = load_font(42, "title")
+    font_large = load_font(38, "numbers")
+    font_medium = load_font(26, "text")
+    font_normal = load_font(22, "text")
+    font_small = load_font(18, "text")
 
-    # === HEADER ===
-    header_y = 25
+    # === HEADER SECTION ===
+    header_y = 30
     header_text = "◄◄ DAILY SUPPLY DROP ►►"
     bbox = draw.textbbox((0, 0), header_text, font=font_title)
     text_width = bbox[2] - bbox[0]
-    text_x = (width - text_width) // 2
-
-    draw.text((text_x, header_y), header_text,
+    draw.text(((width - text_width) // 2, header_y), header_text,
              fill=CODEC_BORDER_BRIGHT, font=font_title)
 
-    # Subheader
-    subheader = f"AGENT: {username.upper()}"
-    draw.text((40, header_y + 55), subheader,
-             fill=CODEC_GREEN_TEXT, font=font_normal)
+    # Agent name
+    draw.text((50, header_y + 60), f"AGENT: {username.upper()}",
+             fill=CODEC_GREEN_TEXT, font=font_medium)
 
-    # Divider
-    draw_divider(draw, 40, header_y + 90, width - 80)
+    draw_divider(draw, 50, header_y + 100, width - 100)
 
-    # === STREAK DISPLAY ===
-    streak_y = header_y + 110
-    draw.text((40, streak_y), "► OPERATION STREAK",
-             fill=CODEC_GREEN_DIM, font=font_small)
+    # === STREAK SECTION ===
+    current_y = header_y + 130
+    streak_color = get_streak_color(streak_days)
 
-    draw_streak_display(draw, 40, streak_y + 30, streak_days,
-                       font_large, font_small)
+    # Streak display
+    draw.text((50, current_y), "► OPERATION STREAK", fill=CODEC_GREEN_DIM, font=font_small)
+
+    # Fire icons and streak count
+    fire_x = 50
+    fire_y = current_y + 35
+    num_fires = min(streak_days, 5)
+    for i in range(num_fires):
+        draw_fire_icon(draw, fire_x + i * 35, fire_y, size=26, color=streak_color)
+
+    streak_text = f"×{streak_days} DAYS"
+    draw.text((fire_x + num_fires * 35 + 15, fire_y), streak_text,
+             fill=streak_color, font=font_large)
+
+    # Milestone badge
+    if streak_days >= 100:
+        badge_text = "🏆 LEGENDARY"
+    elif streak_days >= 30:
+        badge_text = "⭐ ELITE"
+    elif streak_days >= 7:
+        badge_text = "🔥 HOT STREAK"
+    else:
+        badge_text = "✓ ACTIVE"
+
+    draw.text((fire_x + num_fires * 35 + 280, fire_y + 5), badge_text,
+             fill=streak_color, font=font_normal)
 
     # === REWARDS SECTION ===
-    rewards_y = streak_y + 130
-    draw.text((40, rewards_y), "► REWARDS RECEIVED",
-             fill=CODEC_GREEN_DIM, font=font_small)
+    current_y += 110
+    draw.text((50, current_y), "► REWARDS RECEIVED", fill=CODEC_GREEN_DIM, font=font_small)
 
-    rewards_content_y = rewards_y + 30
+    rewards_y = current_y + 35
 
-    # GMP Box
-    draw_reward_box(draw, 40, rewards_content_y, "GMP", gmp_reward,
-                   CODEC_GREEN_BRIGHT, font_small, font_large)
+    # Reward boxes side by side with proper spacing
+    draw_reward_box(draw, 50, rewards_y, "GMP", gmp_reward,
+                   CODEC_GREEN_BRIGHT, font_small, font_large, width=320)
 
-    # XP Box
-    draw_reward_box(draw, 260, rewards_content_y, "EXPERIENCE", xp_reward,
-                   CODEC_BORDER_BRIGHT, font_small, font_large)
+    draw_reward_box(draw, 390, rewards_y, "EXPERIENCE", xp_reward,
+                   CODEC_BORDER_BRIGHT, font_small, font_large, width=320)
 
-    # === UPDATED STATS ===
-    stats_y = rewards_content_y + 100
-    draw.text((40, stats_y), "► UPDATED STATUS",
-             fill=CODEC_GREEN_DIM, font=font_small)
+    # === CURRENT STATUS ===
+    current_y = rewards_y + 130
+    draw.text((50, current_y), "► UPDATED STATUS", fill=CODEC_GREEN_DIM, font=font_small)
 
-    stats_content_y = stats_y + 30
-    stats_text = f"GMP: {current_gmp:,}  |  XP: {current_xp:,}  |  RANK: {current_rank}"
-    draw.text((40, stats_content_y), stats_text,
-             fill=CODEC_GREEN_TEXT, font=font_normal)
+    stats_y = current_y + 35
+    draw_stat_display(draw, 50, stats_y, "TOTAL GMP", f"{current_gmp:,}",
+                     font_small, font_medium)
+    draw_stat_display(draw, 320, stats_y, "TOTAL XP", f"{current_xp:,}",
+                     font_small, font_medium)
+    draw_stat_display(draw, 590, stats_y, "RANK", current_rank,
+                     font_small, font_medium)
 
-    # === PROMOTION BANNER (if applicable) ===
+    # === PROMOTION BANNER (if promoted) ===
     if promoted and new_rank:
-        promo_y = stats_content_y + 50
-        draw_promotion_banner(draw, 40, promo_y, width - 80, new_rank,
-                            font_medium, font_normal, flash=False)
+        promo_y = stats_y + 90
+        promo_width = width - 100
+        promo_height = 60
 
-        # Role granted text
-        if role_granted:
-            role_y = promo_y + 80
-            role_text = f"✓ Discord Role Granted: {role_granted}"
-            draw.text((40, role_y), role_text,
-                     fill=CODEC_YELLOW, font=font_small)
+        draw.rectangle([50, promo_y, 50 + promo_width, promo_y + promo_height],
+                      fill=CODEC_ORANGE, outline=CODEC_YELLOW, width=4)
+
+        promo_text = f"★ PROMOTION: {new_rank} ★"
+        bbox = draw.textbbox((0, 0), promo_text, font=font_large)
+        text_width = bbox[2] - bbox[0]
+        draw.text(((width - text_width) // 2, promo_y + 12), promo_text,
+                 fill=CODEC_BG_DARK, font=font_large)
 
     # === FOOTER ===
-    footer_y = height - 35
-    footer_text = "Return in 24:00:00 for next supply drop"
-    draw.text((40, footer_y), footer_text,
-             fill=CODEC_GREEN_DIM, font=font_tiny)
+    footer_y = height - 40
+    draw.text((50, footer_y), "◄ Return in 24:00:00 for next supply drop",
+             fill=CODEC_GREEN_DIM, font=font_small)
 
-    # Copyright
-    draw.text((width - 320, footer_y),
-             "©1987 2001 Konami Computer Entertainment",
-             fill=CODEC_GREEN_DIM, font=font_tiny)
+    draw.text((width - 380, footer_y), "©2025 THE PHANTOM'S INN",
+             fill=CODEC_GREEN_DIM, font=font_small)
 
-    # === FRAME ===
-    draw_simple_frame(draw, width, height)
-
-    # === APPLY EFFECTS ===
+    # === FRAME & EFFECTS ===
+    draw_codec_frame(draw, width, height)
     base = add_scanlines(base, spacing=3)
-    base = add_subtle_static(base, intensity=8)
+    base = add_subtle_static(base, intensity=10)
     base = add_glow(base)
 
     return base
@@ -572,51 +634,149 @@ def generate_daily_supply_animated_DEPRECATED(username, gmp_reward, xp_reward,
 
     return output_path
 
+# === PROMOTION CARD GENERATOR ===
+def generate_promotion_card(username, old_rank, new_rank, current_xp,
+                           gmp_bonus=0, role_granted=None):
+    """
+    Generates MGS Codec-style PROMOTION achievement card
+
+    Args:
+        username: Display name
+        old_rank: Previous rank
+        new_rank: New rank achieved
+        current_xp: Total XP
+        gmp_bonus: Bonus GMP for promotion (optional)
+        role_granted: Discord role name (optional)
+
+    Returns:
+        PIL Image object
+    """
+    username = sanitize_username(username)
+
+    width, height = 1000, 550
+
+    base = Image.new("RGB", (width, height), CODEC_BG_DARK)
+    draw = ImageDraw.Draw(base)
+
+    # Load fonts
+    font_title = load_font(52, "title")
+    font_huge = load_font(44, "numbers")
+    font_large = load_font(36, "numbers")
+    font_medium = load_font(28, "text")
+    font_normal = load_font(24, "text")
+    font_small = load_font(20, "text")
+
+    # === HEADER ===
+    header_y = 30
+    header_text = "★ PROMOTION ACHIEVED ★"
+    bbox = draw.textbbox((0, 0), header_text, font=font_title)
+    text_width = bbox[2] - bbox[0]
+    draw.text(((width - text_width) // 2, header_y), header_text,
+             fill=CODEC_YELLOW, font=font_title)
+
+    # Agent name
+    draw.text((50, header_y + 75), f"AGENT: {username.upper()}",
+             fill=CODEC_GREEN_TEXT, font=font_medium)
+
+    draw_divider(draw, 50, header_y + 115, width - 100)
+
+    # === MAIN PROMOTION DISPLAY ===
+    current_y = header_y + 150
+
+    # Old rank
+    draw.text((50, current_y), "PREVIOUS RANK", fill=CODEC_GREEN_DIM, font=font_small)
+    draw.text((50, current_y + 30), old_rank, fill=CODEC_GREEN_TEXT, font=font_large)
+
+    # Arrow
+    arrow_x = width // 2 - 60
+    arrow_y = current_y + 40
+    arrow_text = "►►"
+    draw.text((arrow_x, arrow_y), arrow_text, fill=CODEC_BORDER_BRIGHT, font=font_huge)
+
+    # New rank (highlighted)
+    new_rank_x = width // 2 + 80
+    draw.text((new_rank_x, current_y), "NEW RANK", fill=CODEC_ORANGE, font=font_small)
+    draw.text((new_rank_x, current_y + 30), new_rank, fill=CODEC_YELLOW, font=font_large)
+
+    # Highlight box around new rank
+    rank_bbox = draw.textbbox((new_rank_x, current_y + 30), new_rank, font=font_large)
+    padding = 10
+    draw.rectangle([rank_bbox[0] - padding, rank_bbox[1] - padding,
+                   rank_bbox[2] + padding, rank_bbox[3] + padding],
+                  outline=CODEC_YELLOW, width=3)
+
+    # === STATS & REWARDS ===
+    current_y += 130
+    draw.text((50, current_y), "► PROMOTION DETAILS", fill=CODEC_GREEN_DIM, font=font_small)
+
+    details_y = current_y + 35
+
+    # XP Display
+    draw_stat_display(draw, 50, details_y, "TOTAL EXPERIENCE", f"{current_xp:,} XP",
+                     font_small, font_medium)
+
+    # GMP Bonus (if any)
+    if gmp_bonus > 0:
+        draw_stat_display(draw, 380, details_y, "BONUS GMP", f"+{gmp_bonus:,}",
+                         font_small, font_medium)
+
+    # Role granted
+    if role_granted:
+        role_y = details_y + 90
+        role_text = f"✓ Discord Role Granted: {role_granted}"
+        draw.text((50, role_y), role_text, fill=CODEC_YELLOW, font=font_normal)
+
+    # === CONGRATULATIONS MESSAGE ===
+    congrats_y = height - 120
+    congrats_text = "MISSION ACCOMPLISHED - CONTINUE OPERATIONS"
+    bbox = draw.textbbox((0, 0), congrats_text, font=font_medium)
+    text_width = bbox[2] - bbox[0]
+    draw.text(((width - text_width) // 2, congrats_y), congrats_text,
+             fill=CODEC_BORDER_BRIGHT, font=font_medium)
+
+    # === FOOTER ===
+    footer_y = height - 40
+    draw.text((50, footer_y), "◄ Keep earning XP to reach the next rank",
+             fill=CODEC_GREEN_DIM, font=font_small)
+
+    draw.text((width - 380, footer_y), "©2025 THE PHANTOM'S INN",
+             fill=CODEC_GREEN_DIM, font=font_small)
+
+    # === FRAME & EFFECTS ===
+    draw_codec_frame(draw, width, height)
+    base = add_scanlines(base, spacing=3)
+    base = add_subtle_static(base, intensity=12)
+    base = add_glow(base)
+
+    return base
+
+
 # === TEST/PREVIEW ===
 if __name__ == "__main__":
-    # Test 1: Normal daily (no promotion)
+    print("🎮 Testing MGS Image Generators...")
+
+    # Test Daily Supply Drop
     img1 = generate_daily_supply_card(
         username="Solid Snake",
-        gmp_reward=200,
-        xp_reward=50,
-        current_gmp=1615,
-        current_xp=1493,
-        current_rank="Private",
-        streak_days=3
+        gmp_reward=500,
+        xp_reward=100,
+        current_gmp=15000,
+        current_xp=8500,
+        current_rank="Captain",
+        streak_days=15,
+        promoted=False
     )
-    img1.save("daily_normal.png")
-    print("✅ Normal daily saved as 'daily_normal.png'")
+    img1.save("test_daily_drop.png")
+    print("✅ Daily drop card saved as 'test_daily_drop.png'")
 
-    # Test 2: With promotion
-    img2 = generate_daily_supply_card(
-        username="Big Boss",
-        gmp_reward=200,
-        xp_reward=50,
-        current_gmp=5420,
-        current_xp=3250,
-        current_rank="Sergeant",
-        streak_days=7,
-        promoted=True,
-        new_rank="Sergeant",
-        role_granted="Sergeant"
+    # Test Promotion Card
+    img2 = generate_promotion_card(
+        username="Solid Snake",
+        old_rank="Lieutenant",
+        new_rank="Captain",
+        current_xp=8500,
+        gmp_bonus=1000,
+        role_granted="Captain"
     )
-    img2.save("daily_promotion.png")
-    print("✅ Promotion daily saved as 'daily_promotion.png'")
-
-    # Test 3: High streak milestone
-    img3 = generate_daily_supply_card(
-        username="The Boss",
-        gmp_reward=200,
-        xp_reward=50,
-        current_gmp=50000,
-        current_xp=15000,
-        current_rank="Colonel",
-        streak_days=30
-    )
-    img3.save("daily_milestone.png")
-    print("✅ Milestone daily saved as 'daily_milestone.png'")
-
-    # Test 4: Animated GIF (REMOVED - too resource intensive)
-    # Animation feature disabled to reduce server load
-    print("✅ All test images generated successfully!")
-    print("ℹ️  Animation feature disabled for server optimization")
+    img2.save("test_promotion.png")
+    print("✅ Promotion card saved as 'test_promotion.png'")
