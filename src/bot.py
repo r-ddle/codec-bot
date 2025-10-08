@@ -26,6 +26,7 @@ async def load_extensions(bot: MGSBot):
         'cogs.intel',
         'cogs.slash_commands',
         'cogs.shop_commands',  # Simplified shop system
+        'cogs.server_event',  # Weekly server events
         # Event handlers
         'events.member_events',
         'events.message_events',

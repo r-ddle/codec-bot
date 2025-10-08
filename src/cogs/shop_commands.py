@@ -7,6 +7,11 @@ import asyncio
 from config.shop_config import SHOP_ITEMS
 from utils.shop_gen import generate_shop_card
 from utils.profile_card_gen import generate_simple_profile_card
+from utils.profile_card_new import (
+    generate_profile_new,
+    generate_profile_new_bg,
+    generate_profile_new_nitro
+)
 
 class ShopCommands(commands.Cog):
     def __init__(self, bot):
@@ -248,6 +253,122 @@ class ShopCommands(commands.Cog):
             embed.description = "```\nNo active boosters.\nVisit !shop to purchase items!```"
 
         await ctx.send(embed=embed)
+
+    @commands.command(name='profilenew')
+    async def profilenew(self, ctx, member: discord.Member = None):
+        """View new profile card design - Basic"""
+        target = member or ctx.author
+        if target.bot:
+            await ctx.send("🤖 Bots don't have profiles.")
+            return
+
+        async with ctx.typing():
+            try:
+                member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+                top_role = next((role.name for role in reversed(target.roles) if role.name != "@everyone"), "NO ROLE")
+                bio_text = member_data.get('bio', 'No bio set.')
+                voice_hours = member_data.get('voice_minutes', 0) // 60
+
+                img = await asyncio.to_thread(
+                    generate_profile_new,
+                    username=target.display_name,
+                    role_name=top_role,
+                    avatar_url=target.avatar.url if target.avatar else None,
+                    bio_text=bio_text,
+                    gmp=member_data.get('gmp', 0),
+                    xp=member_data.get('xp', 0),
+                    messages=member_data.get('messages_sent', 0),
+                    voice_hours=voice_hours
+                )
+
+                buffer = BytesIO()
+                await asyncio.to_thread(img.save, buffer, 'PNG')
+                buffer.seek(0)
+                await ctx.send(file=discord.File(buffer, 'profile_new.png'))
+            except Exception as e:
+                await ctx.send(f"❌ Error: {e}")
+                import traceback
+                traceback.print_exc()
+
+    @commands.command(name='profilenewbg')
+    async def profilenewbg(self, ctx, member: discord.Member = None):
+        """View new profile card design - Enhanced Background"""
+        target = member or ctx.author
+        if target.bot:
+            await ctx.send("🤖 Bots don't have profiles.")
+            return
+
+        async with ctx.typing():
+            try:
+                member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+                top_role = next((role.name for role in reversed(target.roles) if role.name != "@everyone"), "NO ROLE")
+                bio_text = member_data.get('bio', 'No bio set.')
+                voice_hours = member_data.get('voice_minutes', 0) // 60
+
+                img = await asyncio.to_thread(
+                    generate_profile_new_bg,
+                    username=target.display_name,
+                    role_name=top_role,
+                    avatar_url=target.avatar.url if target.avatar else None,
+                    bio_text=bio_text,
+                    gmp=member_data.get('gmp', 0),
+                    xp=member_data.get('xp', 0),
+                    messages=member_data.get('messages_sent', 0),
+                    voice_hours=voice_hours
+                )
+
+                buffer = BytesIO()
+                await asyncio.to_thread(img.save, buffer, 'PNG')
+                buffer.seek(0)
+                await ctx.send(file=discord.File(buffer, 'profile_new_bg.png'))
+            except Exception as e:
+                await ctx.send(f"❌ Error: {e}")
+                import traceback
+                traceback.print_exc()
+
+    @commands.command(name='profilenewbgnitro')
+    async def profilenewbgnitro(self, ctx, member: discord.Member = None):
+        """View new profile card design - Nitro Banner"""
+        target = member or ctx.author
+        if target.bot:
+            await ctx.send("🤖 Bots don't have profiles.")
+            return
+
+        async with ctx.typing():
+            try:
+                member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+                top_role = next((role.name for role in reversed(target.roles) if role.name != "@everyone"), "NO ROLE")
+                bio_text = member_data.get('bio', 'No bio set.')
+                voice_hours = member_data.get('voice_minutes', 0) // 60
+
+                # Get banner URL (only for Nitro users)
+                banner_url = target.banner.url if target.banner else None
+
+                img = await generate_profile_new_nitro(
+                    username=target.display_name,
+                    role_name=top_role,
+                    avatar_url=target.avatar.url if target.avatar else None,
+                    banner_url=banner_url,
+                    bio_text=bio_text,
+                    gmp=member_data.get('gmp', 0),
+                    xp=member_data.get('xp', 0),
+                    messages=member_data.get('messages_sent', 0),
+                    voice_hours=voice_hours
+                )
+
+                buffer = BytesIO()
+                await asyncio.to_thread(img.save, buffer, 'PNG')
+                buffer.seek(0)
+
+                if not banner_url:
+                    await ctx.send("ℹ️ No banner detected. Using default background.",
+                                  file=discord.File(buffer, 'profile_new_nitro.png'))
+                else:
+                    await ctx.send(file=discord.File(buffer, 'profile_new_nitro.png'))
+            except Exception as e:
+                await ctx.send(f"❌ Error: {e}")
+                import traceback
+                traceback.print_exc()
 
 async def setup(bot):
     await bot.add_cog(ShopCommands(bot))

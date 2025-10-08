@@ -775,6 +775,127 @@ Lieutenant: 750 XP
     # REMOVED: test_supply_anim command
     # Animation feature disabled to reduce server load and improve performance
 
+    @commands.command(name='promote')
+    @commands.has_permissions(administrator=True)
+    async def promote_member(self, ctx, member: discord.Member, rank_name: str):
+        """
+        Manually promote a member to a specific rank.
+
+        Usage: !promote @user "Rank Name"
+        Example: !promote @Snake "Big Boss"
+        """
+        if member.bot:
+            await ctx.send("❌ Cannot promote bots.")
+            return
+
+        try:
+            # Find the rank
+            target_rank = None
+            for rank in MGS_RANKS:
+                if rank["name"].lower() == rank_name.lower():
+                    target_rank = rank
+                    break
+
+            if not target_rank:
+                available_ranks = ", ".join([f'"{r["name"]}"' for r in MGS_RANKS])
+                await ctx.send(f"❌ Invalid rank name. Available ranks:\n{available_ranks}")
+                return
+
+            # Update member data
+            member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
+            old_rank = member_data.get('rank', 'Recruit')
+
+            member_data['rank'] = target_rank['name']
+            member_data['rank_icon'] = target_rank['icon']
+            member_data['xp'] = target_rank['required_xp']
+
+            # Update Discord role
+            role_updated = await update_member_roles(member, target_rank["name"])
+
+            # Save
+            self.bot.member_data.schedule_save()
+            await self.bot.member_data.save_data_async()
+
+            embed = discord.Embed(
+                title="✅ MEMBER PROMOTED",
+                description=f"{member.mention} has been promoted!",
+                color=0x00ff00
+            )
+            embed.add_field(name="Old Rank", value=old_rank, inline=True)
+            embed.add_field(name="New Rank", value=f"{target_rank['icon']} {target_rank['name']}", inline=True)
+            embed.add_field(name="XP Set", value=f"{target_rank['required_xp']:,}", inline=False)
+            embed.add_field(name="Discord Role", value="✅ Applied" if role_updated else "⚠️ Role not found", inline=False)
+            embed.set_footer(text=f"Promoted by {ctx.author}")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error promoting member: {e}")
+            logger.error(f"Error in promote: {e}")
+
+    @commands.command(name='givexp')
+    @commands.has_permissions(administrator=True)
+    async def give_xp(self, ctx, member: discord.Member, amount: int):
+        """
+        Give XP to a member and update their rank if needed.
+
+        Usage: !givexp @user 1000
+        Use negative amounts to remove XP: !givexp @user -500
+        """
+        if member.bot:
+            await ctx.send("❌ Cannot give XP to bots.")
+            return
+
+        try:
+            member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
+            old_xp = member_data.get('xp', 0)
+            old_rank = member_data.get('rank', 'Recruit')
+
+            # Add XP (can be negative)
+            new_xp = max(0, old_xp + amount)  # Don't go below 0
+            member_data['xp'] = new_xp
+
+            # Check if rank changed
+            new_rank_data = calculate_rank_from_xp(new_xp)
+            rank_changed = new_rank_data['name'] != old_rank
+
+            if rank_changed:
+                member_data['rank'] = new_rank_data['name']
+                member_data['rank_icon'] = new_rank_data['icon']
+                await update_member_roles(member, new_rank_data['name'])
+
+            # Save
+            self.bot.member_data.schedule_save()
+            await self.bot.member_data.save_data_async()
+
+            embed = discord.Embed(
+                title="✅ XP MODIFIED",
+                description=f"XP {'added to' if amount > 0 else 'removed from'} {member.mention}",
+                color=0x00ff00 if amount > 0 else 0xff9900
+            )
+            embed.add_field(name="XP Change", value=f"{amount:+,}", inline=True)
+            embed.add_field(name="Old XP", value=f"{old_xp:,}", inline=True)
+            embed.add_field(name="New XP", value=f"{new_xp:,}", inline=True)
+
+            if rank_changed:
+                embed.add_field(
+                    name="🎖️ RANK CHANGED",
+                    value=f"{old_rank} → {new_rank_data['icon']} {new_rank_data['name']}",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Current Rank",
+                    value=f"{member_data.get('rank_icon', '')} {member_data.get('rank', 'Recruit')}",
+                    inline=False
+                )
+
+            embed.set_footer(text=f"Modified by {ctx.author}")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error giving XP: {e}")
+            logger.error(f"Error in givexp: {e}")
+
 
 async def setup(bot):
     """Load the Admin cog."""
