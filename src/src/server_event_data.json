@@ -4,7 +4,28 @@
   "message_goal": 15000,
   "start_date": "2025-10-09T00:46:58.094233",
   "end_date": "2025-10-12T23:59:59.094233",
-  "total_messages": 0,
-  "participants": {},
-  "last_progress_update": "2025-10-09T00:46:58.094233"
+  "total_messages": 40,
+  "participants": {
+    "1040597411116089424": {
+      "username": "riddle",
+      "message_count": 25
+    },
+    "1354708230575493241": {
+      "username": "evan_streamz",
+      "message_count": 7
+    },
+    "1081692525305286697": {
+      "username": "NordicGaming | PVT",
+      "message_count": 1
+    },
+    "427605487047933963": {
+      "username": "Lore Monkey",
+      "message_count": 6
+    },
+    "1049417650587054142": {
+      "username": "I drink | LT",
+      "message_count": 1
+    }
+  },
+  "last_progress_update": "2025-10-09T01:54:35.163532"
 }

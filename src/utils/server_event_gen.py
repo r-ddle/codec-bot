@@ -139,7 +139,7 @@ def generate_event_progress(
         top_contributors: List of (username, message_count) tuples
     """
     width = 750
-    height = 500
+    height = 300
 
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
@@ -197,7 +197,7 @@ def generate_event_progress(
 
     # Filled portion
     filled_width = int(bar_width * min(percentage / 100, 1.0))
-    if filled_width > 0:
+    if filled_width > 4:  # Need at least 4 pixels to draw with 2px border offset
         draw.rectangle([bar_x + 2, bar_y + 2, bar_x + filled_width - 2, bar_y + bar_height - 2],
                       fill=CODEC_GREEN_TEXT)
 

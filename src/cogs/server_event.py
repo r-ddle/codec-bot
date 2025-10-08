@@ -394,6 +394,64 @@ class ServerEvent(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Error: {e}")
 
+    @commands.command(name='eventinfo')
+    async def event_info(self, ctx):
+        """Public command: show current event progress image + leaderboard text + reminder"""
+        if not self.event_manager.is_event_active():
+            await ctx.send("❌ No active event.")
+            return
+
+        try:
+            progress_data = self.event_manager.get_progress_data()
+            if not progress_data:
+                await ctx.send("❌ No event data available.")
+                return
+
+            # Generate the start banner (same banner used at event start)
+            event_info = self.event_manager.get_event_info()
+
+            # Parse and format start/end dates if possible
+            start_str = event_info.get("start_date")
+            end_str = event_info.get("end_date")
+            try:
+                start_dt = datetime.fromisoformat(start_str) if start_str else None
+                end_dt = datetime.fromisoformat(end_str) if end_str else None
+                start_fmt = start_dt.strftime("%A, %b %d") if start_dt else ""
+                end_fmt = end_dt.strftime("%A, %b %d") if end_dt else ""
+            except Exception:
+                start_fmt = start_str or ""
+                end_fmt = end_str or ""
+
+            img = await asyncio.to_thread(
+                generate_event_start_banner,
+                event_title=event_info.get("title", "Weekly Community Challenge"),
+                message_goal=event_info.get("goal", 15000),
+                start_date=start_fmt,
+                end_date=end_fmt
+            )
+
+            # Convert to Discord file and send in the invoking channel
+            buffer = BytesIO()
+            await asyncio.to_thread(img.save, buffer, 'PNG')
+            buffer.seek(0)
+
+            await ctx.send(file=discord.File(buffer, 'event_start.png'))
+
+            # Send leaderboard (top 3) as plain text to avoid flooding
+            leaderboard = self.event_manager.get_leaderboard(limit=3)
+            if leaderboard:
+                leaderboard_text = "**Top Contributors:**\n"
+                for i, (username, msg_count) in enumerate(leaderboard, 1):
+                    leaderboard_text += f"{i}. {username} - {msg_count:,} messages\n"
+                await ctx.send(leaderboard_text)
+
+            # Send reminder small text
+            await ctx.send("-# If you want to get notified of future server events, type !remindme")
+
+        except Exception as e:
+            logger.error(f"Error in eventinfo command: {e}")
+            await ctx.send(f"❌ Error: {e}")
+
 
 async def setup(bot):
     await bot.add_cog(ServerEvent(bot))
