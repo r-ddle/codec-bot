@@ -13,6 +13,7 @@ from utils.rank_system import get_rank_data_by_name, get_next_rank_info, MGS_RAN
 from utils.role_manager import update_member_roles
 from utils.image_gen import generate_rank_card
 from utils.daily_supply_gen import generate_daily_supply_card
+from utils.leaderboard_gen import generate_leaderboard
 
 
 class Progression(commands.Cog):
@@ -166,14 +167,14 @@ class Progression(commands.Cog):
 
     @commands.command(name='leaderboard', aliases=['lb'])
     async def leaderboard(self, ctx, category: str = "xp"):
-        """View server leaderboard."""
+        """View server leaderboard with MGS Codec styling."""
         guild_id = ctx.guild.id
 
         valid_categories = {
-            "gmp": "GMP Ranking",
-            "xp": "Experience Points",
-            "tactical": "Tactical Words",
-            "messages": "Messages Sent"
+            "gmp": ("GMP RANKING", "GMP"),
+            "xp": ("EXPERIENCE POINTS", "XP"),
+            "tactical": ("TACTICAL WORDS", "WORDS"),
+            "messages": ("MESSAGES SENT", "MSG")
         }
 
         category_mapping = {
@@ -187,40 +188,54 @@ class Progression(commands.Cog):
             category = "xp"
 
         sort_field = category_mapping[category.lower()]
-        title = valid_categories[category.lower()]
+        category_name, unit_suffix = valid_categories[category.lower()]
 
-        leaderboard_data = self.bot.member_data.get_leaderboard(guild_id, sort_by=sort_field, limit=10)
-
-        embed = discord.Embed(
-            title=f" LEADERBOARD: {title.upper()}",
-            color=0x599cff
+        # Fetch leaderboard data
+        leaderboard_data = self.bot.member_data.get_leaderboard(
+            guild_id, sort_by=sort_field, limit=10
         )
 
         if not leaderboard_data:
-            embed.add_field(name="NO DATA", value="No operatives found.", inline=False)
-            await ctx.send(embed=embed)
+            await ctx.send("❌ No operatives found in database.")
             return
 
-        leaderboard_text = ""
-        for i, (member_id, data) in enumerate(leaderboard_data, 1):
+        # Show typing indicator while generating
+        async with ctx.typing():
             try:
-                member = ctx.guild.get_member(int(member_id))
-                name = member.display_name if member else f"Unknown ({member_id})"
+                # Format data for image generator
+                formatted_data = []
+                for i, (member_id, data) in enumerate(leaderboard_data, 1):
+                    try:
+                        member = ctx.guild.get_member(int(member_id))
+                        name = member.display_name if member else f"Unknown"
+                        value = data.get(sort_field, 0)
+                        rank_icon = data.get("rank_icon", "")
 
-                medal = "" if i == 1 else "" if i == 2 else "" if i == 3 else f"{i}."
-                value = data.get(sort_field, 0)
-                rank_icon = data.get("rank_icon", "")
+                        formatted_data.append((i, name, value, rank_icon))
+                    except Exception:
+                        continue
 
-                leaderboard_text += f"{medal} **{name}** - {format_number(value)} {category.upper()} {rank_icon}\n"
-            except Exception:
-                continue
+                # Generate image off the event loop
+                img = await asyncio.to_thread(
+                    generate_leaderboard,
+                    leaderboard_data=formatted_data,
+                    category=category_name,
+                    unit_suffix=unit_suffix,
+                    guild_name=ctx.guild.name
+                )
 
-        embed.add_field(name="TOP OPERATIVES", value=leaderboard_text, inline=False)
+                # Convert to Discord-compatible format
+                buffer = BytesIO()
+                await asyncio.to_thread(img.save, buffer, 'PNG')
+                buffer.seek(0)
 
-        categories_help = "\n".join([f"`!lb {cat}` - {name}" for cat, name in valid_categories.items()])
-        embed.add_field(name="CATEGORIES", value=categories_help, inline=False)
+                file = discord.File(buffer, filename='leaderboard.png')
+                await ctx.send(file=file)
 
-        await ctx.send(embed=embed)
+            except Exception as e:
+                await ctx.send(f"❌ Failed to generate leaderboard: {e}")
+                import traceback
+                traceback.print_exc()
 
     @commands.command(name='daily')
     async def daily(self, ctx):

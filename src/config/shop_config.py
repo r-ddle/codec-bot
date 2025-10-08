@@ -5,44 +5,31 @@ Shop configuration - Easy customization of shop items and UI
 # SIMPLIFIED Shop Items - Keep it simple for MGS community!
 SHOP_ITEMS = [
     {
-        'name': '⚡ XP Booster (2 Hours)',
-        'description': 'Double XP from all activities for 2 hours. Perfect for a gaming session!',
-        'category': 'booster',
-        'price': 500,
-        'duration_hours': 2,
-        'item_type': 'xp_boost_2h',
-        'emoji': '⚡',
-        'color': 0xFFD700
-    },
-    {
-        'name': '📦 Tactical Intel Bundle',
-        'description': 'Bonus reward package: +500 XP and +200 GMP',
-        'category': 'bundle',
-        'price': 150,
-        'duration_hours': 0,
-        'item_type': 'intel_bundle',
-        'emoji': '📦',
-        'color': 0x3498DB
-    },
-    {
-        'name': '🎁 Extra Daily Claim',
-        'description': 'Get a second daily bonus today! One-time use.',
-        'category': 'special',
-        'price': 300,
-        'duration_hours': 0,
-        'item_type': 'extra_daily',
-        'emoji': '🎁',
-        'color': 0x2ECC71
-    },
-    {
-        'name': '🌟 MGS Name Color',
-        'description': 'Unlock special name color role! (Cosmetic - admin will apply)',
+        'name': 'CUSTOM ROLE',
+        'description': 'Customize your color and role name',
         'category': 'cosmetic',
         'price': 15000,
         'duration_hours': 0,
-        'item_type': 'name_color',
-        'emoji': '🌟',
+        'item_type': 'custom_role',
         'color': 0x9B59B6
+    },
+    {
+        'name': 'EXTRA DAILY',
+        'description': 'Get 2nd daily supply drop (no streak affect)',
+        'category': 'special',
+        'price': 5000,
+        'duration_hours': 0,
+        'item_type': 'extra_daily',
+        'color': 0x2ECC71
+    },
+    {
+        'name': '2HR BOOSTER',
+        'description': 'Extra XP/GMP + reduced cooldown (30s->10s)',
+        'category': 'booster',
+        'price': 1000,
+        'duration_hours': 2,
+        'item_type': 'xp_boost_2h',
+        'color': 0xFFD700
     },
 ]
 

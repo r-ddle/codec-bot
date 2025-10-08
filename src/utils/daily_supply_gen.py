@@ -436,7 +436,7 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
 
     # === HEADER SECTION ===
     header_y = 30
-    header_text = "◄◄ DAILY SUPPLY DROP ►►"
+    header_text = "DAILY SUPPLY DROP"
     bbox = draw.textbbox((0, 0), header_text, font=font_title)
     text_width = bbox[2] - bbox[0]
     draw.text(((width - text_width) // 2, header_y), header_text,

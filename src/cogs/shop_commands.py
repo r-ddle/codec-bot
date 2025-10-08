@@ -1,448 +1,253 @@
-"""
-Shop commands cog - Phase 4 implementation with buttons and image cards
-"""
+﻿"""Shop commands - simplified"""
 import discord
-from discord import app_commands
 from discord.ext import commands
 from io import BytesIO
-from utils.shop_ui import ShopView, InventoryView, ConfirmPurchaseView
-from utils.image_gen import generate_rank_card
-from config.settings import logger, FEATURE_FLAGS
-from config.constants import MGS_RANKS
-from utils.formatters import format_number
-
+from datetime import datetime, timedelta
+import asyncio
+from config.shop_config import SHOP_ITEMS
+from utils.shop_gen import generate_shop_card
+from utils.profile_card_gen import generate_simple_profile_card
 
 class ShopCommands(commands.Cog):
-    """Shop and inventory commands with UI"""
-
     def __init__(self, bot):
         self.bot = bot
 
-    # ===== SHOP COMMANDS =====
-
-    @app_commands.command(name="shop", description="Browse the GMP shop with interactive buttons")
-    async def shop_slash(self, interaction: discord.Interaction):
-        """Open the interactive shop"""
-        if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
-            await interaction.response.send_message(
-                "❌ The shop is currently disabled. Contact an administrator.",
-                ephemeral=True
-            )
-            return
-
-        try:
-            # Create shop view
-            shop_view = ShopView(self.bot, interaction.user.id, interaction.guild.id)
-
-            # Create initial embed
-            member_data = self.bot.member_data.get_member_data(interaction.user.id, interaction.guild.id)
-            balance = member_data.get('gmp', 0)
-
-            embed = discord.Embed(
-                title="🏪 FOXHOUND GMP SHOP",
-                description="Use the buttons below to browse categories and purchase items!",
-                color=0x599cff
-            )
-            embed.add_field(
-                name="💰 Your Balance",
-                value=f"```{balance:,} GMP```",
-                inline=False
-            )
-            embed.add_field(
-                name="📖 How to Use",
-                value="1️⃣ Click category buttons to browse\n2️⃣ Use `/buy <item_id>` to purchase\n3️⃣ Check `/inventory` to use items",
-                inline=False
-            )
-            embed.set_footer(text="Shop items are configurable in shop_config.py")
-
-            await interaction.response.send_message(embed=embed, view=shop_view)
-
-            # Auto-show first category
-            await shop_view.update_shop_display(interaction)
-
-        except Exception as e:
-            logger.error(f"Error opening shop: {e}")
-            await interaction.response.send_message(
-                f"❌ Error opening shop: {e}",
-                ephemeral=True
-            )
-
     @commands.command(name='shop')
-    async def shop_text(self, ctx):
-        """Open the interactive shop (text command)"""
-        # Rate limiting
-        from utils.rate_limiter import rate_limiter
-        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'shop')
-        if not can_use:
-            await ctx.send(f"⏳ Please wait {remaining:.0f}s before opening shop again.", delete_after=5)
+    async def shop(self, ctx):
+        """View the GMP shop"""
+        member_data = self.bot.member_data.get_member_data(ctx.author.id, ctx.guild.id)
+        async with ctx.typing():
+            try:
+                img = await asyncio.to_thread(generate_shop_card, member_data.get('gmp', 0), SHOP_ITEMS)
+                buffer = BytesIO()
+                await asyncio.to_thread(img.save, buffer, 'PNG')
+                buffer.seek(0)
+                await ctx.send(file=discord.File(buffer, 'shop.png'))
+            except Exception as e:
+                await ctx.send(f"❌ Error: {e}")
+
+    @commands.command(name='profile')
+    async def profile(self, ctx, member: discord.Member = None):
+        """View profile card"""
+        target = member or ctx.author
+        if target.bot:
+            await ctx.send("🤖 Bots don't have profiles.")
             return
 
-        if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
-            await ctx.send("❌ The shop is currently disabled. Contact an administrator.")
+        async with ctx.typing():
+            try:
+                member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
+                joined_at = target.joined_at
+                member_since = joined_at.strftime("%b %Y").upper() if joined_at else "UNKNOWN"
+                top_role = next((role.name for role in reversed(target.roles) if role.name != "@everyone"), "NO ROLE")
+                bio_text = member_data.get('bio', 'No bio set.')
+                voice_hours = member_data.get('voice_minutes', 0) // 60
+
+                img = await asyncio.to_thread(
+                    generate_simple_profile_card,
+                    username=target.display_name,
+                    role_name=top_role,
+                    avatar_url=target.avatar.url if target.avatar else None,
+                    member_since=member_since,
+                    bio_text=bio_text,
+                    gmp=member_data.get('gmp', 0),
+                    xp=member_data.get('xp', 0),
+                    messages=member_data.get('messages_sent', 0),
+                    voice_hours=voice_hours,
+                    tactical_words=member_data.get('total_tactical_words', 0)
+                )
+
+                buffer = BytesIO()
+                await asyncio.to_thread(img.save, buffer, 'PNG')
+                buffer.seek(0)
+                await ctx.send(file=discord.File(buffer, 'profile.png'))
+            except Exception as e:
+                await ctx.send(f"❌ Error: {e}")
+
+    @commands.command(name='setbio')
+    async def setbio(self, ctx, *, bio_text: str):
+        """Set your bio"""
+        if len(bio_text) > 150:
+            await ctx.send("❌ Bio too long! Max 150 characters.")
             return
 
         try:
-            # Create shop view
-            shop_view = ShopView(self.bot, ctx.author.id, ctx.guild.id)
-
-            # Create initial embed
             member_data = self.bot.member_data.get_member_data(ctx.author.id, ctx.guild.id)
-            balance = member_data.get('gmp', 0)
-
-            embed = discord.Embed(
-                title="🏪 FOXHOUND GMP SHOP",
-                description="Use the buttons below to browse categories and purchase items!",
-                color=0x599cff
-            )
-            embed.add_field(
-                name="💰 Your Balance",
-                value=f"```{balance:,} GMP```",
-                inline=False
-            )
-            embed.add_field(
-                name="📖 How to Use",
-                value="1️⃣ Click category buttons to browse\n2️⃣ Use `!buy <item_id>` to purchase\n3️⃣ Check `!inventory` to use items",
-                inline=False
-            )
-
-            message = await ctx.send(embed=embed, view=shop_view)
-
+            member_data['bio'] = bio_text
+            self.bot.member_data.schedule_save()
+            await self.bot.member_data.save_data_async()
+            await ctx.send("✅ Bio updated! Use `!profile` to see it.")
         except Exception as e:
-            logger.error(f"Error opening shop: {e}")
-            await ctx.send(f"❌ Error opening shop: {e}")
-
-    # ===== BUY COMMAND =====
-
-    @app_commands.command(name="buy", description="Purchase an item from the shop")
-    @app_commands.describe(item_id="The ID of the item to purchase")
-    async def buy_slash(self, interaction: discord.Interaction, item_id: int):
-        """Purchase an item"""
-        if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
-            await interaction.response.send_message(
-                "❌ The shop is currently disabled.",
-                ephemeral=True
-            )
-            return
-
-        try:
-            # Get item details
-            async with self.bot.neon_db.pool.acquire() as conn:
-                item = await conn.fetchrow(
-                    'SELECT * FROM shop_items WHERE item_id = $1 AND is_active = TRUE',
-                    item_id
-                )
-
-            if not item:
-                await interaction.response.send_message(
-                    "❌ Item not found or unavailable!",
-                    ephemeral=True
-                )
-                return
-
-            item_dict = dict(item)
-
-            # Check balance
-            member_data = self.bot.member_data.get_member_data(interaction.user.id, interaction.guild.id)
-            balance = member_data.get('gmp', 0)
-
-            if balance < item_dict['price']:
-                await interaction.response.send_message(
-                    f"❌ Not enough GMP! Need **{item_dict['price']:,}**, have **{balance:,}**",
-                    ephemeral=True
-                )
-                return
-
-            # Create confirmation view
-            confirm_view = ConfirmPurchaseView(self.bot, interaction.user.id, interaction.guild.id, item_dict)
-
-            embed = discord.Embed(
-                title="🛒 CONFIRM PURCHASE",
-                description=f"Are you sure you want to buy this item?",
-                color=0xFFD700
-            )
-            embed.add_field(name="Item", value=item_dict['name'], inline=True)
-            embed.add_field(name="Price", value=f"{item_dict['price']:,} GMP", inline=True)
-            embed.add_field(name="Your Balance", value=f"{balance:,} GMP", inline=True)
-            embed.add_field(name="After Purchase", value=f"{balance - item_dict['price']:,} GMP", inline=True)
-            embed.add_field(name="Description", value=item_dict['description'], inline=False)
-
-            await interaction.response.send_message(embed=embed, view=confirm_view, ephemeral=True)
-
-        except Exception as e:
-            logger.error(f"Error in buy command: {e}")
-            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+            await ctx.send(f"❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
 
     @commands.command(name='buy')
-    async def buy_text(self, ctx, item_id: int):
-        """Purchase an item (text command)"""
-        # Rate limiting
-        from utils.rate_limiter import rate_limiter
-        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'buy')
-        if not can_use:
-            await ctx.send(f"⏳ Please wait {remaining:.0f}s before making another purchase.", delete_after=5)
+    async def buy(self, ctx, item_number: int):
+        """Purchase an item from the shop
+
+        Usage: !buy 1  (for custom role)
+               !buy 2  (for extra daily)
+               !buy 3  (for 2hr booster)
+        """
+        # Validate item number
+        if item_number < 1 or item_number > len(SHOP_ITEMS):
+            await ctx.send(f"❌ Invalid item number! Use `!shop` to see available items (1-{len(SHOP_ITEMS)}).")
             return
 
-        if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
-            await ctx.send("❌ The shop is currently disabled.")
+        item = SHOP_ITEMS[item_number - 1]
+        member_data = self.bot.member_data.get_member_data(ctx.author.id, ctx.guild.id)
+        user_gmp = member_data.get('gmp', 0)
+
+        # Check if user can afford
+        if user_gmp < item['price']:
+            await ctx.send(f"❌ Not enough GMP! You need **{item['price']:,}** GMP but only have **{user_gmp:,}** GMP.")
             return
 
-        try:
-            # Get item details
-            async with self.bot.neon_db.pool.acquire() as conn:
-                item = await conn.fetchrow(
-                    'SELECT * FROM shop_items WHERE item_id = $1 AND is_active = TRUE',
-                    item_id
-                )
-
-            if not item:
-                await ctx.send("❌ Item not found or unavailable!")
-                return
-
-            item_dict = dict(item)
-
-            # Check balance
-            member_data = self.bot.member_data.get_member_data(ctx.author.id, ctx.guild.id)
-            balance = member_data.get('gmp', 0)
-
-            if balance < item_dict['price']:
-                await ctx.send(f"❌ Not enough GMP! Need **{item_dict['price']:,}**, have **{balance:,}**")
-                return
-
-            # Create confirmation view
-            confirm_view = ConfirmPurchaseView(self.bot, ctx.author.id, ctx.guild.id, item_dict)
+        # Process purchase based on item type
+        if item['item_type'] == 'custom_role':
+            # Deduct GMP
+            member_data['gmp'] = user_gmp - item['price']
+            self.bot.member_data.schedule_save()
+            await self.bot.member_data.save_data_async()
 
             embed = discord.Embed(
-                title="🛒 CONFIRM PURCHASE",
-                description=f"Are you sure you want to buy this item?",
+                title="✅ CUSTOM ROLE PURCHASED",
+                description=f"You've purchased a custom role for **{item['price']:,} GMP**!\n\n"
+                           f"**Next Steps:**\n"
+                           f"1. Choose your role name\n"
+                           f"2. Choose your role color (hex code)\n"
+                           f"3. Contact an admin to apply it\n\n"
+                           f"Remaining GMP: **{member_data['gmp']:,}**",
+                color=0x9B59B6
+            )
+            await ctx.send(embed=embed)
+
+        elif item['item_type'] == 'extra_daily':
+            # Check if user already claimed daily today
+            last_daily = member_data.get('last_daily_claim')
+            today = datetime.now().date()
+
+            if last_daily:
+                last_date = datetime.fromisoformat(last_daily).date()
+                if last_date == today:
+                    # Already claimed, so give extra daily
+                    gmp_reward = 200
+                    xp_reward = 100
+
+                    member_data['gmp'] = user_gmp - item['price'] + gmp_reward
+                    member_data['xp'] = member_data.get('xp', 0) + xp_reward
+
+                    self.bot.member_data.schedule_save()
+                    await self.bot.member_data.save_data_async()
+
+                    embed = discord.Embed(
+                        title="✅ EXTRA DAILY CLAIMED",
+                        description=f"You've received your extra daily supply drop!\n\n"
+                                   f"**Rewards:**\n"
+                                   f"• +{gmp_reward} GMP\n"
+                                   f"• +{xp_reward} XP\n\n"
+                                   f"Remaining GMP: **{member_data['gmp']:,}**",
+                        color=0x2ECC71
+                    )
+                    await ctx.send(embed=embed)
+                else:
+                    await ctx.send("❌ You haven't claimed your regular daily yet today! Use `!daily` first.")
+                    return
+            else:
+                await ctx.send("❌ You haven't claimed your regular daily yet! Use `!daily` first.")
+                return
+
+        elif item['item_type'] == 'xp_boost_2h':
+            # Add booster to inventory
+            inventory = member_data.get('inventory', {})
+            boosters = inventory.get('boosters', [])
+
+            # Check if user already has an active booster
+            now = datetime.now()
+            active_booster = None
+            for booster in boosters:
+                if booster.get('active') and datetime.fromisoformat(booster['expires_at']) > now:
+                    active_booster = booster
+                    break
+
+            if active_booster:
+                await ctx.send("❌ You already have an active booster! Wait for it to expire first.")
+                return
+
+            # Deduct GMP and add booster
+            member_data['gmp'] = user_gmp - item['price']
+            expires_at = now + timedelta(hours=item['duration_hours'])
+
+            booster = {
+                'item_type': item['item_type'],
+                'active': True,
+                'purchased_at': now.isoformat(),
+                'expires_at': expires_at.isoformat(),
+                'xp_multiplier': 2.0,
+                'gmp_multiplier': 2.0,
+                'cooldown_reduction': 20  # Reduces cooldown from 30s to 10s
+            }
+
+            boosters.append(booster)
+            inventory['boosters'] = boosters
+            member_data['inventory'] = inventory
+
+            self.bot.member_data.schedule_save()
+            await self.bot.member_data.save_data_async()
+
+            embed = discord.Embed(
+                title="⚡ 2HR BOOSTER ACTIVATED",
+                description=f"Your booster is now active for **2 hours**!\n\n"
+                           f"**Benefits:**\n"
+                           f"• 2x XP from messages\n"
+                           f"• 2x GMP from messages\n"
+                           f"• Cooldown reduced (30s → 10s)\n\n"
+                           f"Expires: <t:{int(expires_at.timestamp())}:R>\n"
+                           f"Remaining GMP: **{member_data['gmp']:,}**",
                 color=0xFFD700
             )
-            embed.add_field(name="Item", value=item_dict['name'], inline=True)
-            embed.add_field(name="Price", value=f"{item_dict['price']:,} GMP", inline=True)
-            embed.add_field(name="Your Balance", value=f"{balance:,} GMP", inline=True)
-            embed.add_field(name="After Purchase", value=f"{balance - item_dict['price']:,} GMP", inline=True)
-            embed.add_field(name="Description", value=item_dict['description'], inline=False)
-
-            await ctx.send(embed=embed, view=confirm_view)
-
-        except Exception as e:
-            logger.error(f"Error in buy command: {e}")
-            await ctx.send(f"❌ Error: {e}")
-
-    # ===== INVENTORY COMMANDS =====
-
-    @app_commands.command(name="inventory", description="View your purchased items")
-    async def inventory_slash(self, interaction: discord.Interaction):
-        """View inventory"""
-        if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
-            await interaction.response.send_message(
-                "❌ The shop is currently disabled.",
-                ephemeral=True
-            )
-            return
-
-        try:
-            inventory_view = InventoryView(self.bot, interaction.user.id, interaction.guild.id)
-            embed = await inventory_view.create_inventory_embed()
-            await interaction.response.send_message(embed=embed, view=inventory_view)
-
-        except Exception as e:
-            logger.error(f"Error showing inventory: {e}")
-            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+            await ctx.send(embed=embed)
 
     @commands.command(name='inventory', aliases=['inv'])
-    async def inventory_text(self, ctx):
-        """View inventory (text command)"""
-        if not FEATURE_FLAGS.get('ENABLE_SHOP', False):
-            await ctx.send("❌ The shop is currently disabled.")
-            return
+    async def inventory(self, ctx):
+        """View your active boosters"""
+        member_data = self.bot.member_data.get_member_data(ctx.author.id, ctx.guild.id)
+        inventory = member_data.get('inventory', {})
+        boosters = inventory.get('boosters', [])
 
-        try:
-            inventory_view = InventoryView(self.bot, ctx.author.id, ctx.guild.id)
-            embed = await inventory_view.create_inventory_embed()
-            await ctx.send(embed=embed, view=inventory_view)
+        # Filter active boosters
+        now = datetime.now()
+        active_boosters = []
+        for booster in boosters:
+            if booster.get('active') and datetime.fromisoformat(booster['expires_at']) > now:
+                active_boosters.append(booster)
 
-        except Exception as e:
-            logger.error(f"Error showing inventory: {e}")
-            await ctx.send(f"❌ Error: {e}")
-
-    # ===== USE COMMAND =====
-
-    @app_commands.command(name="use", description="Activate an item from your inventory")
-    @app_commands.describe(inventory_id="The inventory ID of the item to use")
-    async def use_slash(self, interaction: discord.Interaction, inventory_id: int):
-        """Use an item from inventory"""
-        if not FEATURE_FLAGS.get('ENABLE_XP_BOOSTERS', False):
-            await interaction.response.send_message(
-                "❌ Item usage is currently disabled.",
-                ephemeral=True
-            )
-            return
-
-        success, message = await self.bot.shop_system.activate_booster(
-            interaction.user.id, interaction.guild.id, inventory_id
+        embed = discord.Embed(
+            title="📦 YOUR INVENTORY",
+            description="Active boosters and items",
+            color=0x599cff
         )
 
-        if success:
-            embed = discord.Embed(
-                title="✅ ITEM ACTIVATED",
-                description=message,
-                color=0x00FF00
-            )
+        if active_boosters:
+            for idx, booster in enumerate(active_boosters, 1):
+                expires_at = datetime.fromisoformat(booster['expires_at'])
+                time_left = expires_at - now
+                hours = int(time_left.total_seconds() // 3600)
+                minutes = int((time_left.total_seconds() % 3600) // 60)
+
+                embed.add_field(
+                    name=f"⚡ 2HR BOOSTER #{idx}",
+                    value=f"```\nTime Left: {hours}h {minutes}m\n"
+                          f"XP Boost: 2x\n"
+                          f"GMP Boost: 2x\n"
+                          f"Cooldown: 10s```",
+                    inline=False
+                )
         else:
-            embed = discord.Embed(
-                title="❌ ACTIVATION FAILED",
-                description=message,
-                color=0xFF0000
-            )
-
-        await interaction.response.send_message(embed=embed)
-
-    @commands.command(name='use')
-    async def use_text(self, ctx, inventory_id: int):
-        """Use an item from inventory (text command)"""
-        if not FEATURE_FLAGS.get('ENABLE_XP_BOOSTERS', False):
-            await ctx.send("❌ Item usage is currently disabled.")
-            return
-
-        success, message = await self.bot.shop_system.activate_booster(
-            ctx.author.id, ctx.guild.id, inventory_id
-        )
-
-        if success:
-            embed = discord.Embed(
-                title="✅ ITEM ACTIVATED",
-                description=message,
-                color=0x00FF00
-            )
-        else:
-            embed = discord.Embed(
-                title="❌ ACTIVATION FAILED",
-                description=message,
-                color=0xFF0000
-            )
+            embed.description = "```\nNo active boosters.\nVisit !shop to purchase items!```"
 
         await ctx.send(embed=embed)
 
-    # ===== RANK CARD WITH IMAGE =====
-
-    @app_commands.command(name="rankcard", description="View your rank card with a beautiful image")
-    @app_commands.describe(user="The member to check (optional)")
-    async def rankcard_slash(self, interaction: discord.Interaction, user: discord.Member = None):
-        """Generate rank card image"""
-        await interaction.response.defer()  # This might take a moment
-
-        try:
-            target = user or interaction.user
-            member_data = self.bot.member_data.get_member_data(target.id, interaction.guild.id)
-
-            current_rank_name = member_data.get('rank', 'Rookie')
-            current_rank_icon = member_data.get('rank_icon', '🎖️')
-            current_xp = member_data.get('xp', 0)
-            current_gmp = member_data.get('gmp', 0)
-            messages = member_data.get('messages_sent', 0)
-            voice_mins = member_data.get('voice_minutes', 0)
-
-            # Find current rank index
-            current_rank_index = 0
-            for i, rank_info in enumerate(MGS_RANKS):
-                if rank_info.get("name") == current_rank_name:
-                    current_rank_index = i
-                    break
-
-            # Get next rank if not at max
-            next_rank = MGS_RANKS[current_rank_index + 1] if current_rank_index < len(MGS_RANKS) - 1 else None
-
-            # Calculate XP needed for progress bar
-            xp_max = next_rank.get("required_xp", current_xp) if next_rank else current_xp
-
-            # Get avatar URL
-            avatar_url = target.avatar.url if target.avatar else None
-
-            # Generate the NEW tactical rank card image with correct parameters
-            img = generate_rank_card(
-                username=target.display_name,
-                rank_badge=current_rank_icon,
-                rank_name=current_rank_name,  # Pass actual rank name, not level number
-                xp=current_xp,
-                xp_max=xp_max,
-                gmp=current_gmp,
-                avatar_url=avatar_url,
-                message_count=messages,
-                voice_time=voice_mins
-            )
-
-            # Convert PIL Image to BytesIO for Discord
-            image_bytes = BytesIO()
-            img.save(image_bytes, format='PNG')
-            image_bytes.seek(0)
-
-            # Send image
-            file = discord.File(fp=image_bytes, filename="rank_card.png")
-            await interaction.followup.send(file=file)
-
-        except Exception as e:
-            logger.error(f"Error generating rank card: {e}")
-            await interaction.followup.send(f"❌ Error generating rank card: {e}")
-
-    @commands.command(name='rankcard', aliases=['rc'])
-    async def rankcard_text(self, ctx, member: discord.Member = None):
-        """Generate rank card image (text command)"""
-        target = member or ctx.author
-
-        try:
-            async with ctx.typing():
-                member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
-
-                current_rank_name = member_data.get('rank', 'Rookie')
-                current_rank_icon = member_data.get('rank_icon', '🎖️')
-                current_xp = member_data.get('xp', 0)
-                current_gmp = member_data.get('gmp', 0)
-                messages = member_data.get('messages_sent', 0)
-                voice_mins = member_data.get('voice_minutes', 0)
-
-                # Find current rank index
-                current_rank_index = 0
-                for i, rank_info in enumerate(MGS_RANKS):
-                    if rank_info.get("name") == current_rank_name:
-                        current_rank_index = i
-                        break
-
-                # Get next rank if not at max
-                next_rank = MGS_RANKS[current_rank_index + 1] if current_rank_index < len(MGS_RANKS) - 1 else None
-
-                # Calculate XP needed for progress bar
-                xp_max = next_rank.get("required_xp", current_xp) if next_rank else current_xp
-
-                # Get avatar URL
-                avatar_url = target.avatar.url if target.avatar else None
-
-                # Generate the NEW tactical rank card image with correct parameters
-                img = generate_rank_card(
-                    username=target.display_name,
-                    rank_badge=current_rank_icon,
-                    rank_name=current_rank_name,  # Pass actual rank name, not level number
-                    xp=current_xp,
-                    xp_max=xp_max,
-                    gmp=current_gmp,
-                    avatar_url=avatar_url,
-                    message_count=messages,
-                    voice_time=voice_mins
-                )
-
-                # Convert PIL Image to BytesIO for Discord
-                image_bytes = BytesIO()
-                img.save(image_bytes, format='PNG')
-                image_bytes.seek(0)
-
-                # Send image
-                file = discord.File(fp=image_bytes, filename="rank_card.png")
-                await ctx.send(file=file)
-
-        except Exception as e:
-            logger.error(f"Error generating rank card: {e}")
-            await ctx.send(f"❌ Error generating rank card: {e}")
-
-
 async def setup(bot):
-    """Load the ShopCommands cog."""
     await bot.add_cog(ShopCommands(bot))
