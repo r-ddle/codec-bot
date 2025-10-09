@@ -100,7 +100,8 @@ DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "join_date": None,
     "bio": "",
     "inventory": {},
-    "verified": False
+    "verified": False,
+    "legacy_progression": False
 }
 
 # Tactical vocabulary for bonus detection

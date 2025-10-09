@@ -165,11 +165,12 @@ class Admin(commands.Cog):
                         continue
 
                     member_data = existing_members[member_key]
+                    legacy_mode = self.bot.member_data.ensure_progression_mode(member_data)
                     current_xp = member_data.get('xp', 0)
                     stored_rank = member_data.get('rank', 'Rookie')
 
                     # Calculate correct rank based on XP
-                    correct_rank, correct_icon = calculate_rank_from_xp(current_xp)
+                    correct_rank, correct_icon = calculate_rank_from_xp(current_xp, use_legacy=legacy_mode)
 
                     # Check if they need promotion
                     if stored_rank != correct_rank:
@@ -182,7 +183,7 @@ class Admin(commands.Cog):
 
                         if role_updated:
                             promoted_count += 1
-                            rank_data = get_rank_data_by_name(correct_rank)
+                            rank_data = get_rank_data_by_name(correct_rank, use_legacy=legacy_mode)
                             role_name = rank_data.get("role_name", correct_rank)
                             promotions.append(f"{member.display_name}: {stored_rank}  {correct_rank} ({role_name})")
                             logger.info(f"AUTO-PROMOTED: {member.name} from {stored_rank} to {correct_rank} ({current_xp} XP)")
@@ -854,14 +855,15 @@ Lieutenant: 750 XP
             new_xp = max(0, old_xp + amount)  # Don't go below 0
             member_data['xp'] = new_xp
 
-            # Check if rank changed
-            new_rank_data = calculate_rank_from_xp(new_xp)
-            rank_changed = new_rank_data['name'] != old_rank
+            # Check if rank changed using appropriate progression table
+            legacy_mode = self.bot.member_data.ensure_progression_mode(member_data)
+            new_rank_name, new_rank_icon = calculate_rank_from_xp(new_xp, use_legacy=legacy_mode)
+            rank_changed = new_rank_name != old_rank
 
             if rank_changed:
-                member_data['rank'] = new_rank_data['name']
-                member_data['rank_icon'] = new_rank_data['icon']
-                await update_member_roles(member, new_rank_data['name'])
+                member_data['rank'] = new_rank_name
+                member_data['rank_icon'] = new_rank_icon
+                await update_member_roles(member, new_rank_name)
 
             # Save
             self.bot.member_data.schedule_save()
@@ -879,7 +881,7 @@ Lieutenant: 750 XP
             if rank_changed:
                 embed.add_field(
                     name="🎖️ RANK CHANGED",
-                    value=f"{old_rank} → {new_rank_data['icon']} {new_rank_data['name']}",
+                    value=f"{old_rank} → {new_rank_icon} {new_rank_name}",
                     inline=False
                 )
             else:

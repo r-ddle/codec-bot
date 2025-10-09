@@ -4,11 +4,11 @@
   "message_goal": 15000,
   "start_date": "2025-10-09T00:46:58.094233",
   "end_date": "2025-10-12T23:59:59.094233",
-  "total_messages": 1040,
+  "total_messages": 1060,
   "participants": {
     "1040597411116089424": {
       "username": "riddle",
-      "message_count": 285
+      "message_count": 297
     },
     "1354708230575493241": {
       "username": "evan_streamz",
@@ -52,7 +52,7 @@
     },
     "690571165567025272": {
       "username": "MysteriousBoyz1",
-      "message_count": 126
+      "message_count": 132
     },
     "1281039591956287581": {
       "username": "Greed",
@@ -68,8 +68,8 @@
     },
     "1049224900600135731": {
       "username": "kaz",
-      "message_count": 115
+      "message_count": 117
     }
   },
-  "last_progress_update": "2025-10-09T07:56:11.370452"
+  "last_progress_update": "2025-10-09T10:58:23.408804"
 }

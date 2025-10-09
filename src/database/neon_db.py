@@ -218,7 +218,8 @@ class NeonDatabase:
                 for member_id, data in members.items():
                     # Recalculate rank if requested
                     if recalculate_ranks:
-                        correct_rank, correct_icon = calculate_rank_from_xp(data.get('xp', 0))
+                        use_legacy = bool(data.get('legacy_progression', False))
+                        correct_rank, correct_icon = calculate_rank_from_xp(data.get('xp', 0), use_legacy=use_legacy)
                         data['rank'] = correct_rank
                         data['rank_icon'] = correct_icon
 
