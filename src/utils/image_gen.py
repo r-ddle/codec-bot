@@ -425,7 +425,7 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
     info_y = 30  # Slightly higher for better balance
 
     # Header: Badge + Username
-    header_text = f"{rank_badge} {username.upper()}"
+    header_text = f"{username.upper()}"
     safe_draw_text(draw, (info_x, info_y), header_text,
                    primary_font=font_title, fallback_font=load_font(font_title.size, 'text'),
                    fill=CODEC_BORDER_BRIGHT)

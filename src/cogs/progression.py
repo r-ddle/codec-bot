@@ -14,6 +14,7 @@ from utils.role_manager import update_member_roles
 from utils.image_gen import generate_rank_card
 from utils.daily_supply_gen import generate_daily_supply_card
 from utils.leaderboard_gen import generate_leaderboard
+from utils.rate_limiter import enforce_rate_limit
 
 
 class Progression(commands.Cog):
@@ -23,14 +24,10 @@ class Progression(commands.Cog):
         self.bot = bot
 
     @commands.command(name='gmp')
+    @enforce_rate_limit('gmp')
     async def gmp(self, ctx):
         """Check GMP balance, rank, and stats."""
-        # Rate limiting
-        from utils.rate_limiter import rate_limiter
-        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'gmp')
-        if not can_use:
-            await ctx.send(f"⏳ Please wait {remaining:.0f}s before using this command again.", delete_after=5)
-            return
+        # Rate limiting enforced via decorator
 
         member_id = ctx.author.id
         guild_id = ctx.guild.id
@@ -79,6 +76,7 @@ class Progression(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='rank')
+    @enforce_rate_limit('rank')
     async def rank(self, ctx, member: Optional[discord.Member] = None):
         """Check rank status of yourself or another member."""
         if member is None:
@@ -166,6 +164,7 @@ class Progression(commands.Cog):
                 traceback.print_exc()
 
     @commands.command(name='leaderboard', aliases=['lb'])
+    @enforce_rate_limit('leaderboard')
     async def leaderboard(self, ctx, category: str = "xp"):
         """View server leaderboard with MGS Codec styling."""
         guild_id = ctx.guild.id
@@ -238,14 +237,10 @@ class Progression(commands.Cog):
                 traceback.print_exc()
 
     @commands.command(name='daily')
+    @enforce_rate_limit('daily')
     async def daily(self, ctx):
         """Claim daily bonus."""
-        # Rate limiting
-        from utils.rate_limiter import rate_limiter
-        can_use, remaining = rate_limiter.check_rate_limit(ctx.author.id, 'daily')
-        if not can_use:
-            await ctx.send(f"⏳ Please wait {remaining:.0f}s before checking daily bonus again.")
-            return
+        # Rate limiting enforced via decorator
 
         member_id = ctx.author.id
         guild_id = ctx.guild.id

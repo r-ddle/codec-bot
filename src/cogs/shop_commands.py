@@ -12,12 +12,14 @@ from utils.profile_card_new import (
     generate_profile_new_bg,
     generate_profile_new_nitro
 )
+from utils.rate_limiter import enforce_rate_limit
 
 class ShopCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.command(name='shop')
+    @enforce_rate_limit('shop')
     async def shop(self, ctx):
         """View the GMP shop"""
         member_data = self.bot.member_data.get_member_data(ctx.author.id, ctx.guild.id)
@@ -32,6 +34,7 @@ class ShopCommands(commands.Cog):
                 await ctx.send(f"❌ Error: {e}")
 
     @commands.command(name='profile')
+    @enforce_rate_limit('rank')
     async def profile(self, ctx, member: discord.Member = None):
         """View profile card"""
         target = member or ctx.author
@@ -70,6 +73,7 @@ class ShopCommands(commands.Cog):
                 await ctx.send(f"❌ Error: {e}")
 
     @commands.command(name='setbio')
+    @enforce_rate_limit('use')
     async def setbio(self, ctx, *, bio_text: str):
         """Set your bio"""
         if len(bio_text) > 150:
@@ -88,6 +92,7 @@ class ShopCommands(commands.Cog):
             traceback.print_exc()
 
     @commands.command(name='buy')
+    @enforce_rate_limit('buy')
     async def buy(self, ctx, item_number: int):
         """Purchase an item from the shop
 
@@ -215,6 +220,7 @@ class ShopCommands(commands.Cog):
             await ctx.send(embed=embed)
 
     @commands.command(name='inventory', aliases=['inv'])
+    @enforce_rate_limit('inventory')
     async def inventory(self, ctx):
         """View your active boosters"""
         member_data = self.bot.member_data.get_member_data(ctx.author.id, ctx.guild.id)
@@ -255,6 +261,7 @@ class ShopCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='profilenew')
+    @enforce_rate_limit('rank')
     async def profilenew(self, ctx, member: discord.Member = None):
         """View new profile card design - Basic"""
         target = member or ctx.author
@@ -291,6 +298,7 @@ class ShopCommands(commands.Cog):
                 traceback.print_exc()
 
     @commands.command(name='profilenewbg')
+    @enforce_rate_limit('rank')
     async def profilenewbg(self, ctx, member: discord.Member = None):
         """View new profile card design - Enhanced Background"""
         target = member or ctx.author
@@ -327,6 +335,7 @@ class ShopCommands(commands.Cog):
                 traceback.print_exc()
 
     @commands.command(name='profilenewbgnitro')
+    @enforce_rate_limit('rank')
     async def profilenewbgnitro(self, ctx, member: discord.Member = None):
         """View new profile card design - Nitro Banner"""
         target = member or ctx.author

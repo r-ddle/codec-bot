@@ -81,6 +81,28 @@ ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
     "tactical_word": {"gmp": 25, "xp": 8}
 }
 
+# Default member data structure (single source of truth)
+DEFAULT_MEMBER_DATA: Dict[str, Any] = {
+    "gmp": 1000,
+    "xp": 0,
+    "rank": "Rookie",
+    "rank_icon": "🎖️",
+    "messages_sent": 0,
+    "voice_minutes": 0,
+    "reactions_given": 0,
+    "reactions_received": 0,
+    "last_daily_claim": None,
+    "daily_streak": 0,
+    "tactical_words_used": 0,
+    "total_tactical_words": 0,
+    "last_message_time": 0,
+    "last_tactical_bonus": 0,
+    "join_date": None,
+    "bio": "",
+    "inventory": {},
+    "verified": False
+}
+
 # Tactical vocabulary for bonus detection
 TACTICAL_WORDS: List[str] = [
     "tactical", "stealth", "operation", "infiltrate", "extract", "intel",

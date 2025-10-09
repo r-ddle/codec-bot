@@ -6,6 +6,7 @@ from discord.ext import commands
 import aiohttp
 
 from config.settings import NEWS_API_KEY, logger
+from utils.rate_limiter import enforce_rate_limit
 
 
 class Intel(commands.Cog):
@@ -15,6 +16,7 @@ class Intel(commands.Cog):
         self.bot = bot
 
     @commands.command(name='intel')
+    @enforce_rate_limit('intel')
     async def intel(self, ctx):
         """Get latest news as intelligence reports (US)."""
         try:

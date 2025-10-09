@@ -5,8 +5,9 @@ import asyncio
 import shutil
 import time
 from typing import Dict, Any, List, Tuple, Optional
+from datetime import datetime
 from config.settings import DATABASE_FILE, logger, NEON_SYNC_INTERVAL_MINUTES
-from config.constants import ACTIVITY_REWARDS
+from config.constants import ACTIVITY_REWARDS, DEFAULT_MEMBER_DATA
 from utils.rank_system import calculate_rank_from_xp
 
 
@@ -123,28 +124,12 @@ class MemberData:
 
             return existing_data
         else:
-            # New member, create default data
-            from datetime import datetime
-            default_member = {
-                "gmp": 1000,
-                "xp": 0,
-                "rank": "Rookie",
-                "rank_icon": "🎖️",
-                "messages_sent": 0,
-                "voice_minutes": 0,
-                "reactions_given": 0,
-                "reactions_received": 0,
-                "last_daily": None,
-                "daily_streak": 0,
-                "tactical_words_used": 0,
-                "verified": False,
-                "total_tactical_words": 0,
-                "last_message_time": 0,
-                "last_tactical_bonus": 0,
-                "join_date": datetime.now().strftime('%Y-%m-%d')
-            }
+            # New member, create default data (from constants - single source of truth)
+            default_member = DEFAULT_MEMBER_DATA.copy()
+            # Update join_date to current date
+            default_member["join_date"] = datetime.now().strftime('%Y-%m-%d')
 
-            self.data[guild_key][member_key] = default_member.copy()
+            self.data[guild_key][member_key] = default_member
             self.schedule_save()
             logger.info(f"Created new member {member_key} in guild {guild_key}")
             return self.data[guild_key][member_key]

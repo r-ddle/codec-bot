@@ -11,6 +11,11 @@ from config.constants import MGS_RANKS
 from utils.daily_supply_gen import generate_daily_supply_card
 from utils.rank_system import get_rank_data_by_name
 from utils.role_manager import update_member_roles
+from utils.rate_limiter import enforce_rate_limit
+from typing import Optional
+
+
+event_group = app_commands.Group(name="event", description="Server event commands")
 
 
 class SlashCommands(commands.Cog):
@@ -30,8 +35,10 @@ class SlashCommands(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="status", description="Check your MGS rank and XP status")
+    @enforce_rate_limit('gmp')
     async def status_slash(self, interaction: discord.Interaction):
         """Quick status check via slash command."""
+        # rate limit enforced via decorator wrapper
         member_id = interaction.user.id
         guild_id = interaction.guild.id
         member_data = self.bot.member_data.get_member_data(member_id, guild_id)
@@ -77,6 +84,7 @@ class SlashCommands(commands.Cog):
 
     @app_commands.command(name="rank", description="View your or another member's rank card")
     @app_commands.describe(user="The member to check (optional)")
+    @enforce_rate_limit('rank')
     async def rank_slash(self, interaction: discord.Interaction, user: discord.Member = None):
         """Slash command version of !rank - shows detailed rank information."""
         try:
@@ -141,6 +149,7 @@ class SlashCommands(commands.Cog):
             )
 
     @app_commands.command(name="daily", description="Claim your daily bonus of GMP and XP")
+    @enforce_rate_limit('daily')
     async def daily_slash(self, interaction: discord.Interaction):
         """Slash command version of !daily - claim daily rewards."""
         await interaction.response.defer()  # Image generation might take a moment
@@ -224,6 +233,7 @@ class SlashCommands(commands.Cog):
         app_commands.Choice(name="GMP (Currency)", value="gmp"),
         app_commands.Choice(name="Messages Sent", value="messages"),
     ])
+    @enforce_rate_limit('leaderboard')
     async def leaderboard_slash(self, interaction: discord.Interaction, board_type: str = "xp"):
         """Show leaderboard via slash command."""
         await interaction.response.defer()  # This might take a moment
@@ -263,6 +273,78 @@ class SlashCommands(commands.Cog):
         embed.set_footer(text=f"Server: {interaction.guild.name}")
 
         await interaction.followup.send(embed=embed)
+
+        # Event group commands
+        @event_group.command(name="status", description="Check current event status")
+        @enforce_rate_limit('gmp')
+        async def event_status(self, interaction: discord.Interaction):
+            if not self.bot.get_cog('ServerEvent'):
+                await interaction.response.send_message("Event system not loaded.", ephemeral=True)
+                return
+
+            event_cog = self.bot.get_cog('ServerEvent')
+            info = event_cog.event_manager.get_event_info()
+
+            if not info.get("active"):
+                await interaction.response.send_message("❌ No active server event.", ephemeral=True)
+                return
+
+            percentage = (info.get("current", 0) / info.get("goal", 1) * 100) if info.get("goal", 0) > 0 else 0
+            await interaction.response.send_message(f"Event: {info.get('title')} - {info.get('current',0):,}/{info.get('goal',0):,} ({percentage:.1f}%)")
+
+        @event_group.command(name="info", description="Show event banner and leaderboard")
+        @enforce_rate_limit('leaderboard')
+        async def event_info(self, interaction: discord.Interaction):
+            if not self.bot.get_cog('ServerEvent'):
+                await interaction.response.send_message("Event system not loaded.", ephemeral=True)
+                return
+
+            event_cog = self.bot.get_cog('ServerEvent')
+            if not event_cog.event_manager.is_event_active():
+                await interaction.response.send_message("❌ No active event.", ephemeral=True)
+                return
+
+            await interaction.response.defer()
+            try:
+                # Reuse existing generation code by calling the cog helper
+                progress_data = event_cog.event_manager.get_progress_data()
+                img = await self.bot.loop.run_in_executor(None, lambda: None)
+                # For now, send a text summary and let the scheduled announcements handle images
+                await interaction.followup.send(f"Event '{event_cog.event_manager.get_event_info().get('title')}' is active. Progress: {progress_data.get('current',0):,}/{progress_data.get('goal',0):,}")
+            except Exception as e:
+                await interaction.followup.send(f"❌ Error fetching event info: {e}", ephemeral=True)
+
+        @event_group.command(name="start", description="Start an event (Admin only)")
+        @app_commands.checks.has_permissions(administrator=True)
+        async def event_start(self, interaction: discord.Interaction, goal: Optional[int] = 15000, title: Optional[str] = None):
+            await interaction.response.defer(ephemeral=True)
+            event_cog = self.bot.get_cog('ServerEvent')
+            if not event_cog:
+                await interaction.followup.send("Event system not loaded.", ephemeral=True)
+                return
+
+            try:
+                event_info = await event_cog.event_manager.start_event(title=title or "Weekly Community Challenge", message_goal=goal)
+                # Announce to event channel
+                await event_cog._announce_event_start(event_info)
+                await interaction.followup.send(f"✅ Event started: {title or 'Weekly Community Challenge'} with goal {goal:,}")
+            except Exception as e:
+                await interaction.followup.send(f"❌ Error starting event: {e}")
+
+        @event_group.command(name="end", description="End the event and distribute rewards (Admin only)")
+        @app_commands.checks.has_permissions(administrator=True)
+        async def event_end(self, interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
+            event_cog = self.bot.get_cog('ServerEvent')
+            if not event_cog:
+                await interaction.followup.send("Event system not loaded.", ephemeral=True)
+                return
+
+            try:
+                await event_cog._end_event_and_distribute_rewards()
+                await interaction.followup.send("✅ Event ended and rewards distributed.")
+            except Exception as e:
+                await interaction.followup.send(f"❌ Error ending event: {e}")
 
 
 async def setup(bot):

@@ -6,6 +6,7 @@ import time
 from typing import Dict, Tuple
 from collections import defaultdict
 from config.settings import logger
+from config.bot_settings import RATE_LIMITS, RATE_LIMIT_MAX_AGE
 
 
 class CommandRateLimiter:
@@ -15,18 +16,8 @@ class CommandRateLimiter:
         # Structure: {user_id: {command_name: last_used_timestamp}}
         self._user_cooldowns: Dict[int, Dict[str, float]] = defaultdict(dict)
 
-        # Command cooldowns in seconds
-        self._cooldowns = {
-            'daily': 60,  # 1 minute between checks
-            'shop': 5,    # 5 seconds between shop opens
-            'buy': 3,     # 3 seconds between purchases
-            'inventory': 5,
-            'use': 10,    # 10 seconds between item uses
-            'gmp': 5,
-            'rank': 10,
-            'leaderboard': 15,
-            'intel': 30,
-        }
+        # Command cooldowns in seconds (loaded from bot_settings)
+        self._cooldowns = RATE_LIMITS
 
     def check_rate_limit(self, user_id: int, command_name: str) -> Tuple[bool, float]:
         """
@@ -74,13 +65,15 @@ class CommandRateLimiter:
                 del self._user_cooldowns[user_id][command_name]
                 logger.info(f"Reset cooldown for user {user_id} command {command_name}")
 
-    def cleanup_old_entries(self, max_age: int = 3600) -> None:
+    def cleanup_old_entries(self, max_age: int = None) -> None:
         """
         Remove old cooldown entries to prevent memory buildup.
 
         Args:
-            max_age: Maximum age in seconds before cleanup
+            max_age: Maximum age in seconds before cleanup (uses RATE_LIMIT_MAX_AGE if None)
         """
+        if max_age is None:
+            max_age = RATE_LIMIT_MAX_AGE
         current_time = time.time()
         users_to_remove = []
 
@@ -106,3 +99,77 @@ class CommandRateLimiter:
 
 # Global rate limiter instance
 rate_limiter = CommandRateLimiter()
+
+
+def enforce_rate_limit(command_name: str):
+    """Decorator to enforce rate limits for both prefix commands and slash (interaction) commands.
+
+    - Bypasses rate limits for users with administrator permissions.
+    - Sends an appropriate cooldown message for Context or Interaction.
+    """
+    from functools import wraps
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Try to find a context-like or interaction-like object in args
+            ctx_or_interaction = None
+            # Typical method signatures: (self, ctx, ... ) or (self, interaction, ...)
+            if len(args) >= 2:
+                ctx_or_interaction = args[1]
+
+            # Fallback: search kwargs for common names
+            if ctx_or_interaction is None:
+                for v in kwargs.values():
+                    if hasattr(v, 'author') or hasattr(v, 'user'):
+                        ctx_or_interaction = v
+                        break
+
+            # If we couldn't find anything, just call the function
+            if ctx_or_interaction is None:
+                return await func(*args, **kwargs)
+
+            # Resolve the user object
+            user = getattr(ctx_or_interaction, 'author', None) or getattr(ctx_or_interaction, 'user', None)
+
+            # If we can't find a user, call original
+            if user is None:
+                return await func(*args, **kwargs)
+
+            # Bypass for administrators
+            guild_perms = getattr(user, 'guild_permissions', None)
+            if guild_perms and getattr(guild_perms, 'administrator', False):
+                return await func(*args, **kwargs)
+
+            # Check rate limiter
+            can_use, remaining = rate_limiter.check_rate_limit(user.id, command_name)
+            if not can_use:
+                # Send cooldown message depending on object type
+                try:
+                    # Interaction
+                    if hasattr(ctx_or_interaction, 'response') and hasattr(ctx_or_interaction, 'user'):
+                        # If response has already been used, use followup
+                        try:
+                            await ctx_or_interaction.response.send_message(f"⏳ Please wait {int(remaining)}s before using this command again.", ephemeral=True)
+                        except Exception:
+                            try:
+                                await ctx_or_interaction.followup.send(f"⏳ Please wait {int(remaining)}s before using this command again.", ephemeral=True)
+                            except Exception:
+                                pass
+
+                    # Context
+                    elif hasattr(ctx_or_interaction, 'send') and hasattr(ctx_or_interaction, 'author'):
+                        await ctx_or_interaction.send(f"⏳ Please wait {int(remaining)}s before using this command again.", delete_after=6)
+
+                except Exception:
+                    # If messaging fails silently, just return
+                    return
+
+                return
+
+            # Allowed: call original
+            return await func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

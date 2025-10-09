@@ -8,6 +8,7 @@ import time
 
 from config.constants import ACTIVITY_REWARDS
 from config.settings import logger
+from utils.rate_limiter import enforce_rate_limit
 
 
 class Info(commands.Cog):
@@ -17,6 +18,7 @@ class Info(commands.Cog):
         self.bot = bot
 
     @commands.command(name='codec')
+    @enforce_rate_limit('intel')
     async def codec(self, ctx):
         """Interactive MGS codec conversation."""
         messages = [
@@ -41,6 +43,7 @@ class Info(commands.Cog):
         await ctx.send("**You can now respond to continue the codec conversation...**")
 
     @commands.command(name='tactical_test')
+    @enforce_rate_limit('intel')
     async def tactical_test(self, ctx, *, message: str = ""):
         """Test tactical word detection."""
         if not message:
@@ -75,6 +78,7 @@ class Info(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='help')
+    @enforce_rate_limit('leaderboard')
     async def help_command(self, ctx):
         """Enhanced help command with categories."""
         embed = discord.Embed(
@@ -168,6 +172,7 @@ GMP is for stats and activities.
         await ctx.send(embed=embed)
 
     @commands.command(name='info')
+    @enforce_rate_limit('gmp')
     async def info(self, ctx):
         """Show bot information and commands."""
         embed = discord.Embed(

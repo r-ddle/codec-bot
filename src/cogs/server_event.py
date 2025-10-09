@@ -15,10 +15,8 @@ from utils.server_event_gen import (
     generate_event_results
 )
 from config.settings import logger
-
-# Constants
-EVENT_ROLE_ID = 1425552378798805132
-EVENT_CHANNEL_ID = 1322065560707530854
+from utils.rate_limiter import enforce_rate_limit
+from config.bot_settings import EVENT_ROLE_ID, EVENT_CHANNEL_ID
 
 
 class ServerEvent(commands.Cog):
@@ -250,6 +248,7 @@ class ServerEvent(commands.Cog):
             )
 
     @commands.command(name='eventstatus')
+    @enforce_rate_limit('gmp')
     async def event_status(self, ctx):
         """Check current event status"""
         info = self.event_manager.get_event_info()
@@ -395,6 +394,7 @@ class ServerEvent(commands.Cog):
             await ctx.send(f"❌ Error: {e}")
 
     @commands.command(name='eventinfo')
+    @enforce_rate_limit('leaderboard')
     async def event_info(self, ctx):
         """Public command: show current event progress image + leaderboard text + reminder"""
         if not self.event_manager.is_event_active():
