@@ -1,257 +1,175 @@
-﻿#  MGS Discord Bot - Refactored Architecture
+﻿# Outer Heaven: Exiled Soldiers - Discord Bot
 
-A Metal Gear Solid-themed Discord bot with XP-based ranking system, now with clean, modular architecture and **cloud database backup**.
+A Metal Gear Solid-themed Discord bot built exclusively for the Outer Heaven: Exiled Soldiers server. Features an XP-based ranking system with automatic role assignment, tactical word detection, daily bonuses, and server-wide leaderboards.
 
-## ✨ New Features
+## Overview
 
-- 🌐 **Neon PostgreSQL** integration for cloud data backup
-- 🚀 **24/7 hosting ready** - Deploy to Railway, Render, or Oracle Cloud
-- 💾 **Automatic data sync** - Never lose member progress
-- 📊 **Database commands** - `!neon_backup`, `!neon_status`
+This bot provides a complete progression and engagement system for server members. Players earn experience points (XP) through various activities including messaging, voice chat participation, and using tactical vocabulary from the Metal Gear Solid series. As members accumulate XP, they automatically receive Discord role promotions that reflect their rank within the server hierarchy.
 
-## 🚀 Quick Start
+## Core Features
 
-### Easy Installation (Windows)
+### XP-Based Ranking System
+The bot tracks member activity and awards XP for engagement. When members reach specific XP thresholds, they are automatically promoted to higher ranks and receive corresponding Discord roles. The system supports legacy progression for existing members while implementing balanced requirements for new members.
 
-```powershell
-.\setup.ps1
-```
+### Activity Tracking
+Members earn XP through multiple channels:
+- Sending messages in text channels (with cooldown to prevent spam)
+- Participating in voice channels
+- Giving and receiving reactions on messages
+- Daily bonus claims with streak tracking
+- Using tactical vocabulary from the Metal Gear Solid universe
 
-### Manual Installation
+### Word-Up Game Moderation
+A dedicated word chain game where players must type words starting with the last letter of the previous word. The bot automatically monitors the game channel, validates submissions, and provides helpful feedback when players make mistakes. The system is case-insensitive and allows players to send GIFs alongside their words.
 
-1. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+### Codec-Style Interface
+All bot interactions use authentic Metal Gear Solid codec-style visual elements, including:
+- Green monochrome aesthetic with scan lines
+- Military-style status reports and briefings
+- MGS-themed quotes and responses
+- Tactical operation terminology
 
-2. Configure environment:
-```bash
-cp .env.example .env
-# Edit .env with your tokens:
-#   - DISCORD_TOKEN (required)
-#   - NEON_DATABASE_URL (optional, recommended)
-```
+### Server Events
+Periodic server-wide events where members compete to reach collective goals. Events track participation and reward top contributors with bonus XP.
 
-3. Run the bot:
-```bash
-cd src
-python bot.py
-```
+## Available Commands
 
-## ☁️ Cloud Deployment
-
-See **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** for:
-- Setting up Neon PostgreSQL (free database)
-- Deploying to Railway.app (recommended)
-- Alternative free hosting options
-- 24/7 uptime solutions
-
-## 📁 Project Structure
-
-```
-txrails/
-├── .env.example              # Environment template
-├── .gitignore                # Git ignore patterns
-├── README.md                 # This file
-├── MIGRATION_GUIDE.md        # Migration instructions
-├── requirements.txt          # Python dependencies
-├── member_data.json          # Bot database (generated)
-└── src/                      # Source code
-    ├── bot.py                # Main entry point - starts the bot
-    ├── config/               # Configuration & constants
-    settings.py           # Environment variables & bot settings
-    constants.py          # MGS ranks, rewards, tactical words
- core/                     # Bot core logic
-    bot_instance.py       # MGSBot class with task loops
- database/                 # Data persistence layer
-    member_data.py        # MemberData class for JSON storage
- utils/                    # Utility functions
-    formatters.py         # Number formatting, progress bars
-    rank_system.py        # Rank calculations
-    role_manager.py       # Discord role management
- cogs/                     # Command modules
-    progression.py        # gmp, rank, leaderboard, daily
-    info.py               # codec, help, info, tactical_test
-    moderation.py         # kick, ban, clear
-    admin.py              # test_promotion, auto_promote, etc.
-    intel.py              # news/intel commands
-    slash_commands.py     # /ping, /status
- events/                   # Event handlers
-    member_events.py      # on_ready, on_member_join
-    message_events.py     # on_message, XP rewards
-    reaction_events.py    # on_reaction_add, on_command_error
- requirements.txt          # Python dependencies
- .env.example              # Environment template
-```
-
-##  Features
-
-### Progression System
-- **XP-based ranking** with automatic Discord role assignment
-- **GMP currency** for stats and activities
-- **Tactical word detection** for bonus XP
-- **Daily bonuses** with cooldown system
-- **Leaderboards** by XP, GMP, messages, and tactical words
-
-### Commands
-
-#### Basic Commands
-- `!gmp` - Check your status, rank, and progression
-- `!rank [@user]` - View rank information
-- `!daily` - Claim daily bonus
-- `!leaderboard [category]` - View server rankings
-- `!codec` - Interactive MGS codec conversation
-- `!tactical_test` - Test tactical word detection
+### Player Commands
+- `!status` - Check your rank, XP, and progression stats
+- `!rank [@user]` - View detailed rank card with statistics
+- `!daily` - Claim daily XP bonus with streak tracking
+- `!leaderboard [category]` - View server rankings (categories: xp, tactical, messages)
+- `!codec` - Interactive Metal Gear Solid codec conversation
+- `!tactical_test <message>` - Test tactical word detection on a message
 - `!help` - Complete command manual
-- `!info` - Quick command reference
+- `!profile [@user]` - View member profile card
+- `!setbio <text>` - Set your profile biography (150 character limit)
 
-#### Moderation Commands
-- `!kick <user> [reason]` - Remove a member
-- `!ban <user> [reason]` - Ban a member
+### Word-Up Game Commands
+- `!wordup_status` - Check current word and next required letter
+- `!wordup_reset` - Reset the word chain (Admin only)
+- `!wordup_set <word>` - Manually set current word (Admin only)
+
+### Admin Commands
+- `!test_promotion [@user]` - Test rank promotion system
+- `!auto_promote` - Auto-assign Discord roles based on current XP
+- `!fix_all_roles` - Sync all Discord roles with database
+- `!check_roles` - Verify required Discord roles exist
+
+### Moderation Commands
+- `!kick <user> [reason]` - Remove a member from the server
+- `!ban <user> [reason]` - Ban a member from the server
 - `!clear <amount>` - Delete messages (1-100)
 
-#### Admin Commands
-- `!test_promotion [@user]` - Test promotion system
-- `!auto_promote` - Auto-assign roles based on XP
-- `!fix_all_roles` - Sync roles with database
-- `!check_roles` - Verify required roles exist
+### Slash Commands
+- `/ping` - Test bot connection and response time
+- `/status` - Check your status (ephemeral message)
 
-#### Slash Commands
-- `/ping` - Test bot connection
-- `/status` - Check your status (ephemeral)
+## Rank Progression
 
-##  Rank System
+The bot uses a balanced XP progression system for new members, while maintaining legacy thresholds for existing members who joined before October 8, 2025.
+
+### Current Rank Thresholds (New Members)
 
 | Rank | Required XP | Discord Role |
 |------|-------------|--------------|
 | Rookie | 0 | None |
-| Private | 100 | Private |
-| Specialist | 200 | Specialist |
-| Corporal | 350 | Corporal |
-| Sergeant | 500 | Sergeant |
-| Lieutenant | 750 | Lieutenant |
-| Captain | 1,000 | Captain |
-| Major | 1,500 | Major |
-| Colonel | 2,500 | Colonel |
-| FOXHOUND | 4,000 | FOXHOUND |
+| Private | 200 | Private |
+| Specialist | 500 | Specialist |
+| Corporal | 1,000 | Corporal |
+| Sergeant | 1,800 | Sergeant |
+| Lieutenant | 3,000 | Lieutenant |
+| Captain | 5,000 | Captain |
+| Major | 8,000 | Major |
+| Colonel | 12,000 | Colonel |
+| FOXHOUND | 18,000 | FOXHOUND |
 
-### How to Earn XP
+### XP Earning Methods
 
--  Send messages: **+3 XP** (30s cooldown)
--  Voice activity: **+2 XP/minute**
--  Give reactions: **+1 XP**
--  Receive reactions: **+2 XP**
--  Daily bonus: **+50 XP**
--  Tactical words: **+8 XP each** (up to 10 per message)
+- Send messages: +3 XP (30 second cooldown between messages)
+- Voice channel activity: +2 XP per minute
+- Give reactions: +1 XP per reaction
+- Receive reactions: +2 XP per reaction received
+- Daily bonus: +50 XP (claimable once per day)
+- Tactical words: +8 XP per word (bot detects MGS-related vocabulary)
 
-##  Development
+### Tactical Vocabulary
 
-### Adding New Commands
+The bot recognizes over 100 tactical and Metal Gear Solid-related words including military terms, stealth operations vocabulary, and character names. Using these words in your messages grants bonus XP. Examples include: tactical, stealth, operation, infiltrate, metal gear, snake, foxhound, codec, and many more.
 
-1. Create or edit a cog in `cogs/`:
-```python
-from discord.ext import commands
+## Word-Up Game
 
-class MyCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+The bot includes automated moderation for the Word-Up word chain game in the dedicated Word-Up channel. Players must continue the chain by starting their word with the last letter of the previous word.
 
-    @commands.command(name='mycommand')
-    async def my_command(self, ctx):
-        await ctx.send("Hello!")
+### Game Rules
 
-async def setup(bot):
-    await bot.add_cog(MyCog(bot))
-```
+- Each word must start with the last letter of the previous word
+- Words are case-insensitive
+- The bot tracks the current word and enforces the chain
+- Violations result in a warning embed showing the expected letter
 
-2. The cog is automatically loaded by `bot.py`
+### Game Commands
 
-### Adding New Events
+- `!wordup_status` - Shows the current word and next required letter
+- `!wordup_reset` - Resets the game chain (Admin only)
+- `!wordup_set <word>` - Manually sets the current word (Admin only)
 
-1. Create or edit an event handler in `events/`:
-```python
-from discord.ext import commands
+## Database
 
-class MyEvents(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+Member data is stored in `member_data.json` with automatic backups every 12 hours. The database tracks:
 
-    @commands.Cog.listener()
-    async def on_my_event(self, ...):
-        # Handle event
-        pass
+- XP and current rank
+- Message count, voice minutes, reaction statistics
+- Tactical word usage counter
+- Daily bonus cooldown and streak
+- Custom profile biography
 
-async def setup(bot):
-    await bot.add_cog(MyEvents(bot))
-```
+Example member record:
 
-##  Database
-
-Member data is stored in `member_data.json` with automatic backups:
-- Atomic writes to prevent corruption
-- Automatic backup before each save
-- Scheduled auto-save every 5 minutes
-- Backup every 12 hours
-
-**Data Structure:**
 ```json
 {
   "guild_id": {
     "member_id": {
-      "gmp": 1000,
-      "xp": 0,
-      "rank": "Rookie",
-      "messages_sent": 0,
-      "voice_minutes": 0,
-      "reactions_given": 0,
-      "reactions_received": 0,
-      "total_tactical_words": 0,
-      "last_daily": null,
-      "last_message_time": 0,
-      "verified": false
+      "xp": 5000,
+      "rank": "Captain",
+      "messages_sent": 1234,
+      "voice_minutes": 567,
+      "reactions_given": 89,
+      "reactions_received": 123,
+      "total_tactical_words": 45,
+      "last_daily": "2025-01-15T12:00:00",
+      "last_message_time": 1705324800.0,
+      "verified": true,
+      "bio": "Soldier of Outer Heaven"
     }
   }
 }
 ```
 
-##  Permissions Required
+## Required Permissions
 
-- **Read Messages/View Channels**
-- **Send Messages**
-- **Embed Links**
-- **Add Reactions**
-- **Manage Roles** (for rank system)
-- **Kick Members** (for moderation)
-- **Ban Members** (for moderation)
-- **Manage Messages** (for clear command)
+The bot requires the following Discord permissions:
 
-##  Environment Variables
+- Read Messages/View Channels
+- Send Messages
+- Embed Links
+- Add Reactions
+- Manage Roles (for automatic rank role assignment)
+- Kick Members (for moderation commands)
+- Ban Members (for moderation commands)
+- Manage Messages (for message clearing)
 
-```env
-# Required
-DISCORD_TOKEN=your_discord_bot_token_here
+## Technical Information
 
-# Optional
-NEWS_API_KEY=your_news_api_key_here
-WELCOME_CHANNEL_ID=channel_id_for_welcome_messages
-```
+The bot is built using discord.py with a modular cog-based architecture. Core features include:
 
-##  Benefits of New Architecture
+- Automatic XP tracking and rank progression
+- Discord role synchronization with rank system
+- JSON-based member data persistence with atomic writes
+- Automated backup system with scheduled saves
+- Event-driven message processing with cooldown management
+- MGS Codec-style image generation for rank cards and daily bonuses
 
- **Modularity** - Each feature in its own file
- **Maintainability** - Easy to find and fix issues
- **Scalability** - Add new features without touching existing code
- **Testability** - Can test individual components
- **Collaboration** - Multiple developers can work simultaneously
-✅ **Type Safety** - Comprehensive type hints throughout
- **Documentation** - Clear docstrings on all functions
+## Credits
 
-##  License
-
- 2025 MGS Discord Bot. All rights reserved.
-
-##  Credits
-
-- Metal Gear Solid franchise by Konami
-- Original bot concept and design
-- Refactored architecture for production use
+Metal Gear Solid franchise by Konami. Bot developed exclusively for the Outer Heaven: Exiled Soldiers Discord server.

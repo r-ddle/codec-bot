@@ -90,8 +90,8 @@ class ServerEvent(commands.Cog):
             await channel.send(
                 f"**THIS WEEK'S SERVER EVENT HAS STARTED!** {ping_text}\n\n"
                 f"**Goal:** {event_info['goal']:,} messages\n"
-                f"**Rewards:** All participants get +500 GMP & +700 XP\n"
-                f"**Bonus:** Top 3 get +1500 GMP & +1500 XP",
+                f"**Rewards:** All participants get +700 XP\n"
+                f"**Bonus:** Top 3 get +1500 XP",
                 file=discord.File(buffer, 'event_start.png')
             )
 
@@ -198,7 +198,7 @@ class ServerEvent(commands.Cog):
             logger.error(f"Error ending event: {e}")
 
     async def _distribute_rewards(self, rewards: dict, guild: discord.Guild):
-        """Distribute GMP and XP rewards to participants"""
+        """Distribute XP rewards to participants"""
         try:
             # Distribute to all eligible participants
             for participant in rewards["all_participants"]:
@@ -207,7 +207,6 @@ class ServerEvent(commands.Cog):
                     guild.id
                 )
 
-                member_data["gmp"] = member_data.get("gmp", 0) + participant["gmp"]
                 member_data["xp"] = member_data.get("xp", 0) + participant["xp"]
 
             # Distribute bonus to top 3
@@ -217,7 +216,6 @@ class ServerEvent(commands.Cog):
                     guild.id
                 )
 
-                member_data["gmp"] = member_data.get("gmp", 0) + top_user["bonus_gmp"]
                 member_data["xp"] = member_data.get("xp", 0) + top_user["bonus_xp"]
 
             # Save all changes

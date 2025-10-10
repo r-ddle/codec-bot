@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timezone
 import random
+import asyncio
 
 from config.settings import WELCOME_CHANNEL_ID, logger
 
@@ -197,32 +198,18 @@ class MemberEvents(commands.Cog):
                 return
 
             embed = discord.Embed(
-                title=" NEW OPERATIVE DETECTED",
-                description=f"**{member.display_name}** has joined Mother Base!",
+                title="New Operative Detected",
+                description=f"**{member.display_name}** has joined Outer Heaven!",
                 color=0x5865F2
             )
 
             embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
 
             embed.add_field(
-                name="STARTING RESOURCES",
-                value="```\n Rank: Rookie\n GMP: 1,000\n XP: 0\n```",
-                inline=True
-            )
-
-            embed.add_field(
-                name="QUICK START",
-                value="```\n!gmp - Check status\n!daily - Get bonus\n!info - Commands\n```",
-                inline=True
-            )
-
-            embed.add_field(
-                name="RANK UP INFO",
-                value="**Earn XP to unlock Discord roles!**\nFirst promotion: **Private** role at 100 XP",
+                name="Rank Up Info",
+                value="Chat in the server to earn XP!\nFirst promotion: **Private** role at 100 XP",
                 inline=False
             )
-
-            embed.set_image(url="https://images-ext-1.discordapp.net/external/znqAGtNjrN09-n-59N5jJGCNJSBIJwYB31d8qzAzXYI/https/media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExdzVqMTFjZXNyZWh6cDA3eGc3YjJuMmUxdjl0Yml6cnhobjlxZzZrMyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/CacxhprRlavR0AveWN/giphy.gif?width=960&height=540")
 
             embed.set_footer(text=f"Joined: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
 
@@ -230,11 +217,6 @@ class MemberEvents(commands.Cog):
             logger.info(f"Welcome sent to #{welcome_channel.name} for {member.name}")
 
             await self.bot.member_data.save_data_async()
-
-            # Optional: Update streaming activity immediately when member joins
-            # Uncomment to enable instant member count updates
-            # if self.activity_mode == 1:
-            #     await self._set_streaming_activity()
 
         except Exception as e:
             logger.error(f"Error in welcome system: {e}", exc_info=True)

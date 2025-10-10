@@ -27,7 +27,6 @@ DATABASE_FILE: str = 'member_data.json'
 # Bot Settings
 COMMAND_PREFIX: str = '!'
 MESSAGE_COOLDOWN: int = 30  # seconds between message XP rewards
-TACTICAL_BONUS_MAX: int = 10  # max tactical words counted per message
 CODEC_CONVERSATION_TIMEOUT: int = 300  # 5 minutes
 
 # Task Loop Intervals (in minutes)

@@ -73,9 +73,8 @@ class MessageEvents(commands.Cog):
 
             # Give base message rewards (apply XP multiplier)
             message_xp = int(ACTIVITY_REWARDS["message"]["xp"] * xp_multiplier)
-            message_rank_changed, message_new_rank = self.bot.member_data.add_xp_and_gmp(
+            message_rank_changed, message_new_rank = self.bot.member_data.add_xp(
                 member_id, guild_id,
-                ACTIVITY_REWARDS["message"]["gmp"],
                 message_xp,
                 "message"
             )
@@ -83,22 +82,6 @@ class MessageEvents(commands.Cog):
             if message_rank_changed:
                 rank_changed = True
                 new_rank = message_new_rank
-
-            # Check for tactical words and award bonus (inside cooldown check to prevent double-dipping)
-            tactical_count = self.bot.check_tactical_words(message.content)
-            if tactical_count > 0:
-                # Award tactical bonus once per message, not per word (prevents exploitation)
-                tactical_xp = int(ACTIVITY_REWARDS["tactical_word"]["xp"] * xp_multiplier * tactical_count)
-                tactical_gmp = ACTIVITY_REWARDS["tactical_word"]["gmp"] * tactical_count
-                tactical_rank_changed, tactical_new_rank = self.bot.member_data.add_xp_and_gmp(
-                    member_id, guild_id,
-                    tactical_gmp,
-                    tactical_xp,
-                    "tactical_word"
-                )
-                if tactical_rank_changed:
-                    rank_changed = True
-                    new_rank = tactical_new_rank
 
             # ONLY notify if there's a genuine rank change
             if rank_changed and old_rank != new_rank:
@@ -123,7 +106,7 @@ class MessageEvents(commands.Cog):
                     updated_member_data = self.bot.member_data.get_member_data(member_id, guild_id)
                     embed.add_field(
                         name="CURRENT STATUS",
-                        value=f"```\nRank: {new_rank}\nXP: {format_number(updated_member_data['xp'])}\nGMP: {format_number(updated_member_data['gmp'])}\n```",
+                        value=f"```\nRank: {new_rank}\nXP: {format_number(updated_member_data['xp'])}\n```",
                         inline=False
                     )
 

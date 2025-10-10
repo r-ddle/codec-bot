@@ -9,7 +9,7 @@ from config.constants import ACTIVITY_REWARDS
 
 class ReactionEvents(commands.Cog):
     """Event handlers for reaction activities."""
-    
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -18,22 +18,20 @@ class ReactionEvents(commands.Cog):
         """Handle reaction add events and award XP."""
         if user.bot:
             return
-            
+
         guild_id = reaction.message.guild.id
-        
+
         # Give XP to reaction giver
-        self.bot.member_data.add_xp_and_gmp(
+        self.bot.member_data.add_xp(
             user.id, guild_id,
-            ACTIVITY_REWARDS["reaction"]["gmp"],
             ACTIVITY_REWARDS["reaction"]["xp"],
             "reaction"
         )
-        
+
         # Give XP to message author if different person
         if not reaction.message.author.bot and reaction.message.author.id != user.id:
-            self.bot.member_data.add_xp_and_gmp(
+            self.bot.member_data.add_xp(
                 reaction.message.author.id, guild_id,
-                ACTIVITY_REWARDS["reaction_received"]["gmp"],
                 ACTIVITY_REWARDS["reaction_received"]["xp"],
                 "reaction_received"
             )

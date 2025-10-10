@@ -67,7 +67,6 @@ def generate_profile_new(
     role_name: str,
     avatar_url: Optional[str],
     bio_text: str,
-    gmp: int,
     xp: int,
     messages: int,
     voice_hours: int
@@ -173,7 +172,6 @@ def generate_profile_new(
     cell_spacing = 10
 
     stats_data = [
-        ("GMP", f"{gmp:,}"),
         ("XP", f"{xp:,}"),
         ("MESSAGES", f"{messages:,}"),
         ("VOICE TIME", f"{voice_hours}H")
@@ -191,7 +189,7 @@ def generate_profile_new(
 
     # === FOOTER ===
     footer_y = height - 25
-    footer_text = "© 2025 THE PHANTOM'S INN"
+    footer_text = "Outer Heaven: Exciled Units"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
         footer_width = footer_bbox[2] - footer_bbox[0]
@@ -217,7 +215,6 @@ def generate_profile_new_bg(
     role_name: str,
     avatar_url: Optional[str],
     bio_text: str,
-    gmp: int,
     xp: int,
     messages: int,
     voice_hours: int
@@ -321,7 +318,6 @@ def generate_profile_new_bg(
     cell_spacing = 10
 
     stats_data = [
-        ("GMP", f"{gmp:,}"),
         ("XP", f"{xp:,}"),
         ("MESSAGES", f"{messages:,}"),
         ("VOICE TIME", f"{voice_hours}H")
@@ -338,7 +334,7 @@ def generate_profile_new_bg(
 
     # === FOOTER ===
     footer_y = height - 25
-    footer_text = "© 2025 THE PHANTOM'S INN"
+    footer_text = "Outer Heaven: Exciled Units"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
         footer_width = footer_bbox[2] - footer_bbox[0]
@@ -365,7 +361,6 @@ async def generate_profile_new_nitro(
     avatar_url: Optional[str],
     banner_url: Optional[str],
     bio_text: str,
-    gmp: int,
     xp: int,
     messages: int,
     voice_hours: int
@@ -486,7 +481,6 @@ async def generate_profile_new_nitro(
     cell_spacing = 10
 
     stats_data = [
-        ("GMP", f"{gmp:,}"),
         ("XP", f"{xp:,}"),
         ("MESSAGES", f"{messages:,}"),
         ("VOICE TIME", f"{voice_hours}H")
@@ -503,7 +497,7 @@ async def generate_profile_new_nitro(
 
     # === FOOTER ===
     footer_y = height - 25
-    footer_text = "© 2025 THE PHANTOM'S INN"
+    footer_text = "Outer Heaven: Exciled Units"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
         footer_width = footer_bbox[2] - footer_bbox[0]
@@ -531,7 +525,6 @@ if __name__ == "__main__":
         role_name="FOXHOUND Operative",
         avatar_url="https://cdn.discordapp.com/embed/avatars/1.png",
         bio_text="A soldier who fights not for country, but for himself.",
-        gmp=45000,
         xp=12500,
         messages=850,
         voice_hours=42

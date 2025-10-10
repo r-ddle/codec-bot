@@ -138,21 +138,19 @@ class MemberData:
             logger.info(f"Created new member {member_key} in guild {guild_key}")
             return self.data[guild_key][member_key]
 
-    def add_xp_and_gmp(
+    def add_xp(
         self,
         member_id: int,
         guild_id: int,
-        gmp_change: int,
         xp_change: int,
         activity_type: Optional[str] = None
     ) -> Tuple[bool, str]:
         """
-        Add XP and GMP to member and check for rank changes.
+        Add XP to member and check for rank changes.
 
         Args:
             member_id: Discord member ID
             guild_id: Discord guild ID
-            gmp_change: Amount of GMP to add
             xp_change: Amount of XP to add
             activity_type: Type of activity (for tracking stats)
 
@@ -175,13 +173,8 @@ class MemberData:
                 member_data["reactions_given"] += 1
             elif activity_type == "reaction_received":
                 member_data["reactions_received"] += 1
-            elif activity_type == "tactical_word":
-                member_data["tactical_words_used"] += 1
-                member_data["total_tactical_words"] += 1
-                member_data["last_tactical_bonus"] = time.time()
 
-        # Add GMP and XP
-        member_data["gmp"] += gmp_change
+        # Add XP
         member_data["xp"] += xp_change
 
         use_legacy = member_data.get('legacy_progression', False)
@@ -241,7 +234,7 @@ class MemberData:
         if migrated:
             self.schedule_save()
 
-    def award_daily_bonus(self, member_id: int, guild_id: int) -> Tuple[bool, int, int, bool, Optional[str]]:
+    def award_daily_bonus(self, member_id: int, guild_id: int) -> Tuple[bool, int, bool, Optional[str]]:
         """
         Award daily bonus to member.
 
@@ -250,7 +243,7 @@ class MemberData:
             guild_id: Discord guild ID
 
         Returns:
-            Tuple of (success, gmp_bonus, xp_bonus, rank_changed, new_rank)
+            Tuple of (success, xp_bonus, rank_changed, new_rank)
         """
         from datetime import datetime, timedelta, timezone
 
@@ -281,19 +274,18 @@ class MemberData:
 
             member_data["last_daily"] = today
 
-            gmp_bonus = ACTIVITY_REWARDS["daily_bonus"]["gmp"]
             xp_bonus = ACTIVITY_REWARDS["daily_bonus"]["xp"]
 
-            rank_changed, new_rank = self.add_xp_and_gmp(
-                member_id, guild_id, gmp_bonus, xp_bonus
+            rank_changed, new_rank = self.add_xp(
+                member_id, guild_id, xp_bonus
             )
 
             # Schedule immediate save to ensure streak is persisted
             self.schedule_save()
 
-            return True, gmp_bonus, xp_bonus, rank_changed, new_rank
+            return True, xp_bonus, rank_changed, new_rank
 
-        return False, 0, 0, False, None
+        return False, 0, False, None
 
     def get_leaderboard(self, guild_id: int, sort_by: str = "xp", limit: int = 10) -> List[Tuple[str, Dict[str, Any]]]:
         """
@@ -312,7 +304,7 @@ class MemberData:
         if guild_key not in self.data:
             return []
 
-        valid_sort_options = ["gmp", "xp", "tactical_words_used", "messages_sent", "total_tactical_words"]
+        valid_sort_options = ["xp", "messages_sent"]
         if sort_by not in valid_sort_options:
             sort_by = "xp"
 

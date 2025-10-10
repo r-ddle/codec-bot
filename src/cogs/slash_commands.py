@@ -51,13 +51,13 @@ class SlashCommands(commands.Cog):
 
         embed.add_field(
             name="CURRENT STATS",
-            value=f"```\nRank: {member_data['rank']}\nGMP: {format_number(member_data['gmp'])}\nXP: {format_number(member_data['xp'])}\n```",
+            value=f"```\nRank: {member_data['rank']}\nXP: {format_number(member_data['xp'])}\n```",
             inline=True
         )
 
         embed.add_field(
             name="ACTIVITY",
-            value=f"```\nMessages: {format_number(member_data['messages_sent'])}\nTactical Words: {format_number(member_data.get('total_tactical_words', 0))}\n```",
+            value=f"```\nMessages: {format_number(member_data['messages_sent'])}\n```",
             inline=True
         )
 
@@ -77,8 +77,6 @@ class SlashCommands(commands.Cog):
 
         if interaction.user.avatar:
             embed.set_thumbnail(url=interaction.user.avatar.url)
-
-        embed.set_footer(text="Use !gmp for detailed rank progress")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -117,7 +115,7 @@ class SlashCommands(commands.Cog):
 
             embed = discord.Embed(
                 title=f"🎖️ {target.display_name}",
-                description=f"**Rank:** {current_rank_name}\n**GMP:** {format_number(member_data.get('gmp', 0))}\n**XP:** {format_number(member_data.get('xp', 0))}",
+                description=f"**Rank:** {current_rank_name}\n**XP:** {format_number(member_data.get('xp', 0))}",
                 color=0x599cff
             )
 
@@ -129,7 +127,6 @@ class SlashCommands(commands.Cog):
                 )
 
             embed.add_field(name="Messages Sent", value=format_number(member_data.get('messages_sent', 0)), inline=True)
-            embed.add_field(name="Tactical Words", value=format_number(member_data.get('total_tactical_words', 0)), inline=True)
 
             if target.avatar:
                 embed.set_thumbnail(url=target.avatar.url)
@@ -148,13 +145,13 @@ class SlashCommands(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="daily", description="Claim your daily bonus of GMP and XP")
+    @app_commands.command(name="daily", description="Claim your daily bonus of XP")
     @enforce_rate_limit('daily')
     async def daily_slash(self, interaction: discord.Interaction):
         """Slash command version of !daily - claim daily rewards."""
         await interaction.response.defer()  # Image generation might take a moment
 
-        success, gmp, xp, rank_changed, new_rank = self.bot.member_data.award_daily_bonus(
+        success, xp, rank_changed, new_rank = self.bot.member_data.award_daily_bonus(
             interaction.user.id,
             interaction.guild.id
         )
@@ -178,9 +175,7 @@ class SlashCommands(commands.Cog):
             try:
                 img = generate_daily_supply_card(
                     username=interaction.user.display_name,
-                    gmp_reward=gmp,
                     xp_reward=xp,
-                    current_gmp=member_data['gmp'],
                     current_xp=member_data['xp'],
                     current_rank=member_data['rank'],
                     streak_days=streak_days,
@@ -201,12 +196,12 @@ class SlashCommands(commands.Cog):
                 # Fallback to text embed if image fails
                 embed = discord.Embed(
                     title="� DAILY SUPPLY DROP",
-                    description=f"**+{gmp} GMP** and **+{xp} XP** received!",
+                    description=f"**+{xp} XP** received!",
                     color=0x00ff00
                 )
                 embed.add_field(
                     name="UPDATED STATS",
-                    value=f"```\nGMP: {member_data['gmp']:,}\nXP: {member_data['xp']:,}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
+                    value=f"```\nXP: {member_data['xp']:,}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
                     inline=False
                 )
                 if rank_changed:
@@ -230,7 +225,6 @@ class SlashCommands(commands.Cog):
     )
     @app_commands.choices(board_type=[
         app_commands.Choice(name="XP (Experience)", value="xp"),
-        app_commands.Choice(name="GMP (Currency)", value="gmp"),
         app_commands.Choice(name="Messages Sent", value="messages"),
     ])
     @enforce_rate_limit('leaderboard')
@@ -261,7 +255,6 @@ class SlashCommands(commands.Cog):
 
         board_names = {
             "xp": "Experience Points",
-            "gmp": "GMP Currency",
             "messages": "Messages Sent"
         }
 

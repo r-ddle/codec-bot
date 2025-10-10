@@ -364,7 +364,7 @@ def draw_stat_box(draw, x, y, label, value, font_label, font_value):
               fill=CODEC_GREEN_PRIMARY, width=1)
 
 # === MAIN GENERATOR ===
-def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
+def generate_rank_card(username, rank_badge, rank_name, xp, xp_max,
                        avatar_url=None, message_count=0, voice_time=0,
                        leaderboard_pos=None):
     """
@@ -376,7 +376,6 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
         rank_name: Military rank name (e.g., "Captain", "FOXHOUND")
         xp: Current XP
         xp_max: XP needed for next level
-        gmp: GMP (currency/points)
         avatar_url: URL to avatar image
         message_count: Total messages sent
         voice_time: Voice chat minutes
@@ -440,12 +439,12 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
     current_y += 30  # Increased from 25 for better spacing
 
     # === STAT DISPLAYS ===
-    # Row 1: Rank Name and GMP - INCREASED SPACING for larger fonts
+    # Row 1: Rank Name and XP
     stat_spacing = 240  # Increased from 200 to accommodate larger text
     draw_stat_box(draw, info_x, current_y, "RANK", rank_name.upper(),
                  font_small, font_large)
-    draw_stat_box(draw, info_x + stat_spacing, current_y, "GMP BALANCE",
-                 f"{gmp:,}", font_small, font_large)
+    draw_stat_box(draw, info_x + stat_spacing, current_y, "EXPERIENCE",
+                 f"{xp:,} XP", font_small, font_large)
 
     # Row 2: Messages and Voice Time
     current_y += 85  # Increased from 80 for better spacing
@@ -485,7 +484,7 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max, gmp,
 
     # Copyright
     safe_draw_text(draw, (width - 300, footer_y),  # Adjusted position
-             "©2025 THE PHANTOM'S INN",
+             "Outer Heaven: Exciled Units",
              primary_font=font_tiny, fallback_font=load_font(font_tiny.size, 'text'),
              fill=CODEC_GREEN_DIM)
 
@@ -507,7 +506,6 @@ if __name__ == "__main__":
         level=42,
         xp=5320,
         xp_max=6000,
-        gmp=125000,
         avatar_url="https://cdn.discordapp.com/embed/avatars/1.png",
         message_count=1547,
         voice_time=342,

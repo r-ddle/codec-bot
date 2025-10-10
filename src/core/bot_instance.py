@@ -7,12 +7,11 @@ import random
 import re
 import time
 from typing import Dict, Any
-from config.settings import COMMAND_PREFIX, logger, ALERT_CHECK_INTERVAL, VOICE_TRACK_INTERVAL, BACKUP_INTERVAL, AUTO_SAVE_INTERVAL, TACTICAL_BONUS_MAX, FEATURE_FLAGS, CODEC_CONVERSATION_TIMEOUT
-from config.constants import MGS_CODEC_SOUNDS, MGS_QUOTES, TACTICAL_WORDS, ACTIVITY_REWARDS
+from config.settings import COMMAND_PREFIX, logger, ALERT_CHECK_INTERVAL, VOICE_TRACK_INTERVAL, BACKUP_INTERVAL, AUTO_SAVE_INTERVAL, FEATURE_FLAGS, CODEC_CONVERSATION_TIMEOUT
+from config.constants import MGS_CODEC_SOUNDS, MGS_QUOTES, ACTIVITY_REWARDS
 from database.member_data import MemberData
 from database.neon_db import NeonDatabase
 from database.extensions import DatabaseExtensions
-from utils.shop import ShopSystem
 
 
 class MGSBot(commands.Bot):
@@ -30,9 +29,6 @@ class MGSBot(commands.Bot):
 
         # Initialize member data with Neon integration
         self.member_data = MemberData(neon_db=self.neon_db)
-
-        # Initialize shop system (Phase 3)
-        self.shop_system = ShopSystem(self)
 
         self.remove_command('help')  # Remove default help to use custom one
         self.codec_conversations: Dict[int, Dict[str, Any]] = {}
@@ -122,29 +118,3 @@ class MGSBot(commands.Bot):
         """Cleanup old rate limit entries to prevent memory leaks."""
         from utils.rate_limiter import rate_limiter
         rate_limiter.cleanup_old_entries()
-
-    def check_tactical_words(self, message_content: str) -> int:
-        """
-        Detect tactical words in message content.
-
-        Args:
-            message_content: Message text to analyze
-
-        Returns:
-            Number of tactical words found (capped at max)
-        """
-        count = 0
-        words_found = set()
-        lower_content = message_content.lower()
-
-        for word in TACTICAL_WORDS:
-            pattern = r'\b' + re.escape(word.lower()) + r'\b'
-            matches = re.findall(pattern, lower_content)
-            if matches:
-                count += len(matches)
-                words_found.add(word)
-
-        if count > 0:
-            logger.info(f"Tactical words found: {list(words_found)} (Total: {count})")
-
-        return min(count, TACTICAL_BONUS_MAX)

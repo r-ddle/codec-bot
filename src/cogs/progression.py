@@ -1,5 +1,5 @@
 ﻿"""
-Progression cog - Commands for checking rank, GMP, leaderboard, and daily bonuses.
+Progression cog - Commands for checking rank, leaderboard, and daily bonuses.
 """
 import discord
 from discord.ext import commands
@@ -23,10 +23,10 @@ class Progression(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name='gmp')
-    @enforce_rate_limit('gmp')
-    async def gmp(self, ctx):
-        """Check GMP balance, rank, and stats."""
+    @commands.command(name='status')
+    @enforce_rate_limit('status')
+    async def status(self, ctx):
+        """Check your rank, XP, and stats."""
         # Rate limiting enforced via decorator
 
         member_id = ctx.author.id
@@ -36,7 +36,7 @@ class Progression(commands.Cog):
 
         embed = discord.Embed(
             title=f"{member_data.get('rank_icon', '')} {ctx.author.display_name}",
-            description=f"**Rank:** {member_data['rank']}\n**GMP:** {format_number(member_data['gmp'])}\n**XP:** {format_number(member_data['xp'])}",
+            description=f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}",
             color=0x599cff
         )
 
@@ -45,7 +45,7 @@ class Progression(commands.Cog):
 
         embed.add_field(
             name="ACTIVITY STATS",
-            value=f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\nTactical Words: {format_number(member_data.get('total_tactical_words', 0))}\n```",
+            value=f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\n```",
             inline=False
         )
 
@@ -96,7 +96,6 @@ class Progression(commands.Cog):
                 current_rank_name = member_data.get('rank', 'Rookie')
                 current_rank_icon = member_data.get('rank_icon', '🎖️')
                 current_xp = member_data.get('xp', 0)
-                current_gmp = member_data.get('gmp', 0)
                 messages = member_data.get('messages_sent', 0)
                 voice_mins = member_data.get('voice_minutes', 0)
 
@@ -124,7 +123,6 @@ class Progression(commands.Cog):
                     current_rank_name,
                     current_xp,
                     xp_max,
-                    current_gmp,
                     avatar_url,
                     messages,
                     voice_mins
@@ -145,7 +143,7 @@ class Progression(commands.Cog):
                 # Fallback to embed if image generation fails
                 embed = discord.Embed(
                     title=f"{member_data.get('rank_icon', '')} {member.display_name}",
-                    description=f"**Rank:** {member_data['rank']}\n**GMP:** {format_number(member_data['gmp'])}\n**XP:** {format_number(member_data['xp'])}",
+                    description=f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}",
                     color=0x599cff
                 )
 
@@ -154,7 +152,7 @@ class Progression(commands.Cog):
 
                 embed.add_field(
                     name="ACTIVITY STATS",
-                    value=f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\nTactical Words: {format_number(member_data.get('total_tactical_words', 0))}\n```",
+                    value=f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\n```",
                     inline=False
                 )
 
@@ -170,16 +168,12 @@ class Progression(commands.Cog):
         guild_id = ctx.guild.id
 
         valid_categories = {
-            "gmp": ("GMP RANKING", "GMP"),
             "xp": ("EXPERIENCE POINTS", "XP"),
-            "tactical": ("TACTICAL WORDS", "WORDS"),
             "messages": ("MESSAGES SENT", "MSG")
         }
 
         category_mapping = {
-            "gmp": "gmp",
             "xp": "xp",
-            "tactical": "total_tactical_words",
             "messages": "messages_sent"
         }
 
@@ -245,7 +239,7 @@ class Progression(commands.Cog):
         member_id = ctx.author.id
         guild_id = ctx.guild.id
 
-        success, gmp, xp, rank_changed, new_rank = self.bot.member_data.award_daily_bonus(member_id, guild_id)
+        success, xp, rank_changed, new_rank = self.bot.member_data.award_daily_bonus(member_id, guild_id)
 
         if success:
             # Get updated member data
@@ -266,9 +260,7 @@ class Progression(commands.Cog):
             try:
                 img = generate_daily_supply_card(
                     username=ctx.author.display_name,
-                    gmp_reward=gmp,
                     xp_reward=xp,
-                    current_gmp=member_data['gmp'],
                     current_xp=member_data['xp'],
                     current_rank=member_data['rank'],
                     streak_days=streak_days,
@@ -289,12 +281,12 @@ class Progression(commands.Cog):
                 # Fallback to text embed if image fails
                 embed = discord.Embed(
                     title="📦 DAILY SUPPLY DROP",
-                    description=f"**+{format_number(gmp)} GMP** and **+{format_number(xp)} XP** received!",
+                    description=f"**+{format_number(xp)} XP** received!",
                     color=0x00ff00
                 )
                 embed.add_field(
                     name="UPDATED STATS",
-                    value=f"```\nGMP: {format_number(member_data['gmp'])}\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
+                    value=f"```\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
                     inline=False
                 )
                 if rank_changed:

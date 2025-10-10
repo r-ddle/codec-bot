@@ -341,11 +341,9 @@ def generate_profile_card(
     member_since="SEPT 2025",
     bio_text="No bio set.",
     # Stats
-    gmp=0,
     xp=0,
     messages=0,
-    voice_hours=0,
-    tactical_words=0
+    voice_hours=0
 ):
     """
     Generates authentic MGS Codec-style profile/bio card.
@@ -356,11 +354,9 @@ def generate_profile_card(
         avatar_url: URL to avatar image
         member_since: Join date string (e.g., "SEPT 2025")
         bio_text: User's custom bio (empty string if not set)
-        gmp: GMP balance
         xp: Experience points
         messages: Total messages sent
         voice_hours: Voice chat hours (not minutes)
-        tactical_words: Tactical words count
 
     Returns:
         PIL Image object
@@ -482,11 +478,9 @@ def generate_profile_card(
 
     # Stat lines with dotted leaders
     stats = [
-        ("GMP", f"{gmp:,}"),
         ("XP", f"{xp:,}"),
         ("MESSAGES", f"{messages:,}"),
-        ("VOICE TIME", f"{voice_hours} HOURS"),
-        ("TACTICAL", f"{tactical_words} WORDS")
+        ("VOICE TIME", f"{voice_hours} HOURS")
     ]
 
     for label, value in stats:
@@ -529,11 +523,9 @@ def generate_simple_profile_card(
     avatar_url: Optional[str],
     member_since: str,
     bio_text: Optional[str],
-    gmp: int,
     xp: int,
     messages: int,
-    voice_hours: int,
-    tactical_words: int
+    voice_hours: int
 ):
     """
     Generates a simple MGS Codec-style profile card.
@@ -544,11 +536,9 @@ def generate_simple_profile_card(
         avatar_url: URL to user's avatar
         member_since: Member since date (e.g., "SEPT 2025")
         bio_text: User bio (optional)
-        gmp: GMP balance
         xp: XP amount
         messages: Message count
         voice_hours: Voice time in hours
-        tactical_words: Tactical words count
 
     Returns:
         PIL Image object
@@ -632,11 +622,9 @@ def generate_simple_profile_card(
                   primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
 
     stats_data = [
-        ("GMP", f"{gmp:,}"),
         ("XP", f"{xp:,}"),
         ("MESSAGES", f"{messages:,}"),
-        ("VOICE TIME", f"{voice_hours} HOURS"),
-        ("TACTICAL", f"{tactical_words} WORDS")
+        ("VOICE TIME", f"{voice_hours} HOURS")
     ]
 
     stat_y = stats_y + 30
@@ -663,7 +651,7 @@ def generate_simple_profile_card(
 
     # === FOOTER ===
     footer_y = height - 35
-    footer_text = "© 2025 THE PHANTOM'S INN"
+    footer_text = "Outer Heaven: Exciled Units"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_body)
         footer_width = footer_bbox[2] - footer_bbox[0]
@@ -692,11 +680,9 @@ if __name__ == "__main__":
         avatar_url="https://cdn.discordapp.com/embed/avatars/1.png",
         member_since="SEPT 2025",
         bio_text="How to jump?",
-        gmp=9420,
         xp=3234,
         messages=556,
-        voice_hours=58,
-        tactical_words=89
+        voice_hours=58
     )
 
     img.save("mgs_codec_profile_simple.png")

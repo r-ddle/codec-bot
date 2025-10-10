@@ -1,14 +1,16 @@
 ﻿"""
 MGS Discord Bot - Main entry point
-A Metal Gear Solid-themed Discord bot with XP-based ranking system.
+A Metal Gear Solid-themed Discord bot for Outer Heaven: Exiled Soldiers
 
 This bot features:
-- XP and GMP progression system
+- XP-based ranking system
 - Automatic Discord role assignment based on XP
-- Tactical word detection for bonus XP
 - Daily bonuses and leaderboards
 - MGS-themed commands and interactions
-- Comprehensive moderation tools
+- Server events and codec conversations
+
+Exclusive to: Outer Heaven: Exiled Soldiers
+Owner: r.ddle
 """
 import asyncio
 from config.settings import TOKEN, logger
@@ -21,12 +23,10 @@ async def load_extensions(bot: MGSBot):
         # Command cogs
         'cogs.progression',
         'cogs.info',
-        # 'cogs.moderation',  # ARCHIVED - Sapphire bot handles moderation
         'cogs.admin',
-        'cogs.intel',
         'cogs.slash_commands',
-        'cogs.shop_commands',  # Simplified shop system
         'cogs.server_event',  # Weekly server events
+        'cogs.word_up',  # Word-Up game moderation
         # Event handlers
         'events.member_events',
         'events.message_events',

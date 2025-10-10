@@ -395,8 +395,8 @@ def draw_promotion_banner(draw, x, y, width, new_rank, font_large, font_medium, 
     draw.text((text_x2, y + 42), rank_text, fill=text_color, font=font_medium)
 
 # === MAIN GENERATOR: DAILY SUPPLY DROP ===
-def generate_daily_supply_card(username, gmp_reward, xp_reward,
-                               current_gmp, current_xp, current_rank,
+def generate_daily_supply_card(username, xp_reward,
+                               current_xp, current_rank,
                                streak_days=1, promoted=False, new_rank=None,
                                role_granted=None):
     """
@@ -406,9 +406,7 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
 
     Args:
         username: Display name
-        gmp_reward: GMP received today
         xp_reward: XP received today
-        current_gmp: Total GMP after reward
         current_xp: Total XP after reward
         current_rank: Current rank name
         streak_days: Consecutive days claimed
@@ -485,23 +483,22 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
 
     rewards_y = current_y + 35
 
-    # Reward boxes side by side with proper spacing
-    draw_reward_box(draw, 50, rewards_y, "GMP", gmp_reward,
-                   CODEC_GREEN_BRIGHT, font_small, font_large, width=320)
-
-    draw_reward_box(draw, 390, rewards_y, "EXPERIENCE", xp_reward,
-                   CODEC_BORDER_BRIGHT, font_small, font_large, width=320)
+    # Reward box centered
+    box_width = 450
+    box_x = (width - box_width) // 2
+    draw_reward_box(draw, box_x, rewards_y, "EXPERIENCE", xp_reward,
+                   CODEC_BORDER_BRIGHT, font_small, font_large, width=box_width)
 
     # === CURRENT STATUS ===
     current_y = rewards_y + 130
     draw.text((50, current_y), "► UPDATED STATUS", fill=CODEC_GREEN_DIM, font=font_small)
 
     stats_y = current_y + 35
-    draw_stat_display(draw, 50, stats_y, "TOTAL GMP", f"{current_gmp:,}",
+    draw_stat_display(draw, 50, stats_y, "TOTAL XP", f"{current_xp:,}",
                      font_small, font_medium)
-    draw_stat_display(draw, 320, stats_y, "TOTAL XP", f"{current_xp:,}",
+    draw_stat_display(draw, 370, stats_y, "RANK", current_rank,
                      font_small, font_medium)
-    draw_stat_display(draw, 590, stats_y, "RANK", current_rank,
+    draw_stat_display(draw, 690, stats_y, "STREAK", f"{streak_days} DAYS",
                      font_small, font_medium)
 
     # === PROMOTION BANNER (if promoted) ===
@@ -524,7 +521,7 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
     draw.text((50, footer_y), "◄ Return in 24:00:00 for next supply drop",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 380, footer_y), "©2025 THE PHANTOM'S INN",
+    draw.text((width - 380, footer_y), "Outer Heaven: Exciled Units",
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===
@@ -535,140 +532,8 @@ def generate_daily_supply_card(username, gmp_reward, xp_reward,
 
     return base
 
-# === GIF ANIMATION REMOVED ===
-# Animation feature removed to reduce server load and improve performance
-# Static images only for optimal hosting
-
-# DEPRECATED: generate_daily_supply_animated()
-def generate_daily_supply_animated_DEPRECATED(username, gmp_reward, xp_reward,
-                                  current_gmp, current_xp, current_rank,
-                                  streak_days=1, promoted=False, new_rank=None,
-                                  role_granted=None, output_path="daily_drop.gif"):
-    """
-    Generates animated GIF version with effects:
-    - Scanline movement
-    - Promotion banner flash (if promoted)
-    - Static interference pulses
-
-    Returns:
-        Path to saved GIF file
-    """
-    width, height = 900, 500
-    frames = []
-    num_frames = 20 if promoted else 10
-
-    for frame_idx in range(num_frames):
-        # Create base frame
-        base = Image.new("RGB", (width, height), CODEC_BG_DARK)
-        draw = ImageDraw.Draw(base)
-
-        # Load fonts
-        font_title = load_font(42, bold=True)
-        font_large = load_font(32, bold=True)
-        font_medium = load_font(24, bold=True)
-        font_normal = load_font(22)
-        font_small = load_font(18)
-        font_tiny = load_font(14)
-
-        # === HEADER ===
-        header_y = 25
-        header_text = "◄◄ DAILY SUPPLY DROP ►►"
-        bbox = draw.textbbox((0, 0), header_text, font=font_title)
-        text_width = bbox[2] - bbox[0]
-        text_x = (width - text_width) // 2
-
-        draw.text((text_x, header_y), header_text,
-                 fill=CODEC_BORDER_BRIGHT, font=font_title)
-
-        subheader = f"AGENT: {username.upper()}"
-        draw.text((40, header_y + 55), subheader,
-                 fill=CODEC_GREEN_TEXT, font=font_normal)
-
-        draw_divider(draw, 40, header_y + 90, width - 80)
-
-        # === STREAK ===
-        streak_y = header_y + 110
-        draw.text((40, streak_y), "► OPERATION STREAK",
-                 fill=CODEC_GREEN_DIM, font=font_small)
-
-        draw_streak_display(draw, 40, streak_y + 30, streak_days,
-                           font_large, font_small)
-
-        # === REWARDS ===
-        rewards_y = streak_y + 130
-        draw.text((40, rewards_y), "► REWARDS RECEIVED",
-                 fill=CODEC_GREEN_DIM, font=font_small)
-
-        rewards_content_y = rewards_y + 30
-        draw_reward_box(draw, 40, rewards_content_y, "GMP", gmp_reward,
-                       CODEC_GREEN_BRIGHT, font_small, font_large)
-        draw_reward_box(draw, 260, rewards_content_y, "EXPERIENCE", xp_reward,
-                       CODEC_BORDER_BRIGHT, font_small, font_large)
-
-        # === STATS ===
-        stats_y = rewards_content_y + 100
-        draw.text((40, stats_y), "► UPDATED STATUS",
-                 fill=CODEC_GREEN_DIM, font=font_small)
-
-        stats_content_y = stats_y + 30
-        stats_text = f"GMP: {current_gmp:,}  |  XP: {current_xp:,}  |  RANK: {current_rank}"
-        draw.text((40, stats_content_y), stats_text,
-                 fill=CODEC_GREEN_TEXT, font=font_normal)
-
-        # === PROMOTION (animated flash) ===
-        if promoted and new_rank:
-            promo_y = stats_content_y + 50
-            # Flash every other frame
-            flash = (frame_idx % 4) < 2
-            draw_promotion_banner(draw, 40, promo_y, width - 80, new_rank,
-                                font_medium, font_normal, flash=flash)
-
-            if role_granted:
-                role_y = promo_y + 80
-                role_text = f"✓ Discord Role Granted: {role_granted}"
-                draw.text((40, role_y), role_text,
-                         fill=CODEC_YELLOW, font=font_small)
-
-        # === FOOTER ===
-        footer_y = height - 35
-        footer_text = "Return in 24:00:00 for next supply drop"
-        draw.text((40, footer_y), footer_text,
-                 fill=CODEC_GREEN_DIM, font=font_tiny)
-
-        draw.text((width - 320, footer_y),
-                 "©2025 THE PHANTOM'S INN",
-                 fill=CODEC_GREEN_DIM, font=font_tiny)
-
-        # === FRAME ===
-        draw_simple_frame(draw, width, height)
-
-        # === ANIMATED EFFECTS ===
-        # Offset scanlines slightly each frame
-        offset = frame_idx % 3
-        base = add_scanlines(base, spacing=3)
-
-        # Pulse static
-        static_intensity = 8 + (frame_idx % 3) * 2
-        base = add_subtle_static(base, intensity=static_intensity)
-
-        base = add_glow(base)
-
-        frames.append(base)
-
-    # Save as GIF
-    frames[0].save(
-        output_path,
-        save_all=True,
-        append_images=frames[1:],
-        duration=100,  # 100ms per frame
-        loop=0  # Infinite loop
-    )
-
-    return output_path
-
 # === PROMOTION CARD GENERATOR ===
-def generate_promotion_card(username, old_rank, new_rank, current_xp,
-                           gmp_bonus=0, role_granted=None):
+def generate_promotion_card(username, old_rank, new_rank, current_xp, role_granted=None):
     """
     Generates MGS Codec-style PROMOTION achievement card
 
@@ -677,7 +542,6 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp,
         old_rank: Previous rank
         new_rank: New rank achieved
         current_xp: Total XP
-        gmp_bonus: Bonus GMP for promotion (optional)
         role_granted: Discord role name (optional)
 
     Returns:
@@ -747,11 +611,6 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp,
     draw_stat_display(draw, 50, details_y, "TOTAL EXPERIENCE", f"{current_xp:,} XP",
                      font_small, font_medium)
 
-    # GMP Bonus (if any)
-    if gmp_bonus > 0:
-        draw_stat_display(draw, 380, details_y, "BONUS GMP", f"+{gmp_bonus:,}",
-                         font_small, font_medium)
-
     # Role granted
     if role_granted:
         role_y = details_y + 90
@@ -771,7 +630,7 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp,
     draw.text((50, footer_y), "◄ Keep earning XP to reach the next rank",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 380, footer_y), "©2025 THE PHANTOM'S INN",
+    draw.text((width - 380, footer_y), "Outer Heaven: Exciled Units",
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===
@@ -790,9 +649,7 @@ if __name__ == "__main__":
     # Test Daily Supply Drop
     img1 = generate_daily_supply_card(
         username="Solid Snake",
-        gmp_reward=500,
         xp_reward=100,
-        current_gmp=15000,
         current_xp=8500,
         current_rank="Captain",
         streak_days=15,
@@ -807,7 +664,6 @@ if __name__ == "__main__":
         old_rank="Lieutenant",
         new_rank="Captain",
         current_xp=8500,
-        gmp_bonus=1000,
         role_granted="Captain"
     )
     img2.save("test_promotion.png")

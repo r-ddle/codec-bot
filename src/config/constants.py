@@ -1,7 +1,38 @@
 """
 Constants for the MGS Discord Bot including ranks, rewards, and themed messages.
+Outer Heaven: Exiled Soldiers
 """
 from typing import List, Dict, Any
+
+# ═══════════════════════════════════════════════════════════════════
+# SERVER IDENTITY
+# ═══════════════════════════════════════════════════════════════════
+SERVER_NAME = "Outer Heaven: Exiled Soldiers"
+SERVER_OWNER = "r.ddle"
+SERVER_FOOTER = "© 2025 OUTER HEAVEN: EXILED SOLDIERS"
+
+# ═══════════════════════════════════════════════════════════════════
+# COMMAND NAMES (Customize command names here)
+# ═══════════════════════════════════════════════════════════════════
+COMMAND_NAMES = {
+    # Progression commands
+    "status": "status",          # Check your rank and XP
+    "rank": "rank",              # View rank card
+    "leaderboard": "leaderboard", # View leaderboards
+    "daily": "daily",            # Daily supply drop
+
+    # Info commands
+    "codec": "codec",            # Codec conversation
+
+    # Profile commands
+    "profile": "profile",        # View profile card
+    "setbio": "setbio",         # Set profile bio
+
+    # Admin commands (keep these hidden from help)
+    "sync": "sync",
+    "backup": "backup",
+    "event": "event",
+}
 
 # MGS-themed messages
 MGS_QUOTES: List[str] = [
@@ -18,25 +49,14 @@ MGS_QUOTES: List[str] = [
     "The future is not some place we are going, but one we are creating."
 ]
 
+# MGS Codec sounds for alerts
 MGS_CODEC_SOUNDS: List[str] = [
-    "*codec ring*",
-    "*codec beep*",
+    "*beep* *beep*",
     "*codec static*",
-]
-
-# Codec conversation responses
-CODEC_RESPONSES: List[str] = [
-    "Snake, can you hear me?",
-    "This is Colonel Campbell. What's your status?",
-    "Stay alert, Snake. Enemy activity detected in your area.",
-    "Remember, this is a stealth mission.",
-    "Keep your guard up out there.",
-    "Good work so far. Continue the mission.",
-    "Be careful, Snake. We're counting on you.",
-    "That's what I like to hear, soldier.",
-    "Mission parameters remain unchanged.",
-    "I can talk now well... Let's continue this operation.",
-    "Solid copy, Snake. Campbell out."
+    "*digital noise*",
+    "*transmission beep*",
+    "*alert tone*",
+    "*communication signal*"
 ]
 
 # XP-BASED RANK PROGRESSION SYSTEM
@@ -51,7 +71,7 @@ MGS_RANKS: List[Dict[str, Any]] = [
     {"name": "Captain", "required_xp": 5000, "icon": "💫", "role_name": "Captain"},
     {"name": "Major", "required_xp": 8000, "icon": "⚡", "role_name": "Major"},
     {"name": "Colonel", "required_xp": 12000, "icon": "🌟", "role_name": "Colonel"},
-    {"name": "FOXHOUND", "required_xp": 18000, "icon": "🦊", "role_name": "FOXHOUND"}
+    {"name": "FOXHOUND", "required_xp": 18000, "icon": "🦊", "role_name": "Foxhound"}
 ]
 
 # LEGACY RANKS (Pre-Oct 2025 users) - Used for backward compatibility
@@ -73,59 +93,33 @@ LEGACY_USER_CUTOFF = "2025-10-08"
 
 # Activity rewards
 ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
-    "message": {"gmp": 15, "xp": 3},
-    "voice_minute": {"gmp": 8, "xp": 2},
-    "reaction": {"gmp": 3, "xp": 1},
-    "reaction_received": {"gmp": 8, "xp": 2},
-    "daily_bonus": {"gmp": 200, "xp": 50},
-    "tactical_word": {"gmp": 25, "xp": 8}
+    "message": {"xp": 3},
+    "voice_minute": {"xp": 2},
+    "reaction": {"xp": 1},
+    "reaction_received": {"xp": 2},
+    "daily_bonus": {"xp": 50}
 }
 
 # Default member data structure (single source of truth)
 DEFAULT_MEMBER_DATA: Dict[str, Any] = {
-    "gmp": 1000,
     "xp": 0,
     "rank": "Rookie",
-    "rank_icon": "🎖️",
+    "rank_icon": "",
     "messages_sent": 0,
     "voice_minutes": 0,
     "reactions_given": 0,
     "reactions_received": 0,
     "last_daily_claim": None,
     "daily_streak": 0,
-    "tactical_words_used": 0,
-    "total_tactical_words": 0,
     "last_message_time": 0,
-    "last_tactical_bonus": 0,
     "join_date": None,
     "bio": "",
-    "inventory": {},
     "verified": False,
     "legacy_progression": False
 }
 
-# Tactical vocabulary for bonus detection
-TACTICAL_WORDS: List[str] = [
-    "tactical", "stealth", "operation", "infiltrate", "extract", "intel",
-    "recon", "mission", "target", "objective", "deploy", "enemy", "patrol",
-    "metal gear", "foxhound", "shadow moses", "outer heaven", "snake",
-    "ocelot", "motherbase", "phantom pain", "peace walker", "mg", "mgs",
-    "nanomachines", "revolver", "diamond dogs", "boss", "tactic",
-    "espionage", "alert", "caution", "silencer", "weapon", "gear", "military",
-    "soldier", "warfare", "combat", "strategy", "sniper", "assault", "defense",
-    "artillery", "ammunition", "camouflage", "surveillance", "reconnaissance",
-    "elimination", "extraction", "insertion", "breach", "secure", "hostile",
-    "friendly", "neutral", "contact", "engage", "disengage", "retreat",
-    "advance", "flank", "cover", "suppression", "overwatch", "backup",
-    "reinforcement", "casualty", "wounded", "medic", "evac", "rendezvous",
-    "cipher", "patriot", "codec", "operative", "commander",
-    "colonel", "major", "captain", "lieutenant", "sergeant", "private"
-]
-
-# Contact administrators for moderation appeals
+# Contact administrators for support
 CONTACT_ADMINS: List[str] = [
-    "solid.ninja",
-    "r.ddle",
-    "rip_carti",
-    "ahab_in_rehab",
+    "r.ddle",  # Server Owner
+    "MysteriousBoyz1"
 ]

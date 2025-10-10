@@ -47,7 +47,6 @@ class RankCardGenerator:
         username: str,
         rank: str,
         xp: int,
-        gmp: int,
         level_progress: float,  # 0.0 to 1.0
         next_rank: str = None,
         avatar_url: str = None,
@@ -106,12 +105,6 @@ class RankCardGenerator:
             draw.text((stats_x, stats_y), f"XP:", fill=self.config['secondary_text_color'],
                      font=self.font_regular)
             draw.text((stats_x + 80, stats_y), f"{xp:,}", fill=self.config['text_color'],
-                     font=self.font_bold)
-
-            # GMP
-            draw.text((stats_x, stats_y + 35), f"GMP:", fill=self.config['secondary_text_color'],
-                     font=self.font_regular)
-            draw.text((stats_x + 80, stats_y + 35), f"{gmp:,}", fill=self.config['text_color'],
                      font=self.font_bold)
 
             # Activity stats (right side)
