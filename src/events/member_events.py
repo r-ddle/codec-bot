@@ -73,7 +73,7 @@ class MemberEvents(commands.Cog):
     async def before_activity_rotation(self):
         """Wait for bot to be ready before starting activity rotation"""
         await self.bot.wait_until_ready()
-        print("🎮 MGS Activity System initialized")
+        print("[GAME] MGS Activity System initialized")
 
     async def _set_rich_presence(self):
         """
@@ -103,7 +103,7 @@ class MemberEvents(commands.Cog):
             activity=activity,
             status=discord.Status.online
         )
-        print("✅ Activity: Rich Presence (Codec Mode)")
+        print("[OK] Activity: Rich Presence (Codec Mode)")
 
     async def _set_streaming_activity(self):
         """
@@ -128,7 +128,7 @@ class MemberEvents(commands.Cog):
             activity=activity,
             status=discord.Status.dnd  # Red status for "on a mission"
         )
-        print(f"✅ Activity: Streaming Mode ({total_members} members)")
+        print(f"[OK] Activity: Streaming Mode ({total_members} members)")
 
     async def _set_quote_activity(self):
         """
@@ -147,13 +147,13 @@ class MemberEvents(commands.Cog):
             activity=activity,
             status=discord.Status.idle  # Yellow status for alert phase
         )
-        print(f"✅ Activity: Quote Mode - '{quote}'")
+        print(f"[OK] Activity: Quote Mode - '{quote}'")
 
     @commands.Cog.listener()
     async def on_ready(self):
         """Bot ready event handler."""
-        print(f"✅ {self.bot.user} is now online and ready!")
-        print(f"🦊 Connected to {len(self.bot.guilds)} guilds")
+        print(f"[OK] {self.bot.user} is now online and ready!")
+        print(f"[FOX] Connected to {len(self.bot.guilds)} guilds")
 
         for guild in self.bot.guilds:
             guild_key = str(guild.id)
@@ -165,7 +165,7 @@ class MemberEvents(commands.Cog):
 
         print(" Bot is fully ready and operational!")
         print(" XP-based ranking system active!")
-        print("🎮 MGS Activity System will start rotating presences")
+        print("[GAME] MGS Activity System will start rotating presences")
 
     @commands.Cog.listener()
     async def on_member_join(self, member):

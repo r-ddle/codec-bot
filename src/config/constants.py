@@ -59,6 +59,20 @@ MGS_CODEC_SOUNDS: List[str] = [
     "*communication signal*"
 ]
 
+# Codec conversation responses
+CODEC_RESPONSES: List[str] = [
+    "Roger that.",
+    "Understood.",
+    "*codec static*",
+    "Affirmative.",
+    "Copy that.",
+    "Solid copy.",
+    "Over and out.",
+    "Stay frosty.",
+    "Keep your head down.",
+    "Watch your six."
+]
+
 # XP-BASED RANK PROGRESSION SYSTEM
 # NEW BALANCED PROGRESSION (Oct 2025) - Existing users keep old thresholds
 MGS_RANKS: List[Dict[str, Any]] = [
