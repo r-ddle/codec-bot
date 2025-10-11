@@ -84,16 +84,17 @@ LEGACY_USER_CUTOFF = "2025-10-08"
 
 # Activity rewards
 ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
-    "message": {"xp": 3},
-    "voice_minute": {"xp": 2},
-    "reaction": {"xp": 1},
-    "reaction_received": {"xp": 2},
-    "daily_bonus": {"xp": 50}
+    "message": {"xp": 2, "gmp": 1},
+    "voice_minute": {"xp": 2, "gmp": 1},
+    "reaction": {"xp": 1, "gmp": 0},
+    "reaction_received": {"xp": 3, "gmp": 1},
+    "daily_bonus": {"xp": 100, "gmp": 50}
 }
 
 # Default member data structure (single source of truth)
 DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "xp": 0,
+    "gmp": 0,
     "rank": "Rookie",
     "rank_icon": "",
     "messages_sent": 0,
@@ -107,6 +108,20 @@ DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "bio": "",
     "verified": False,
     "legacy_progression": False
+}
+
+# XP Multipliers based on rank
+RANK_XP_MULTIPLIERS = {
+    "Rookie": 1.0,
+    "Private": 1.0,
+    "Specialist": 1.1,
+    "Corporal": 1.2,
+    "Sergeant": 1.3,
+    "Lieutenant": 1.4,
+    "Captain": 1.5,
+    "Major": 1.6,
+    "Colonel": 1.7,
+    "FOXHOUND": 2.0
 }
 
 # Contact administrators for support

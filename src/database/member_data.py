@@ -7,7 +7,7 @@ import time
 from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime
 from config.settings import DATABASE_FILE, logger, NEON_SYNC_INTERVAL_MINUTES
-from config.constants import ACTIVITY_REWARDS, DEFAULT_MEMBER_DATA
+from config.constants import ACTIVITY_REWARDS, DEFAULT_MEMBER_DATA, RANK_XP_MULTIPLIERS
 from utils.rank_system import calculate_rank_from_xp, is_legacy_user
 
 
@@ -163,6 +163,10 @@ class MemberData:
         old_rank = member_data["rank"]
         old_xp = member_data["xp"]
 
+        # Apply rank-based XP multiplier
+        multiplier = RANK_XP_MULTIPLIERS.get(old_rank, 1.0)
+        xp_change = int(xp_change * multiplier)
+
         # Update stats based on activity type
         if activity_type:
             if activity_type == "message":
@@ -188,7 +192,70 @@ class MemberData:
         self.schedule_save()
 
         # Log the change
-        logger.debug(f"Member {member_id}: +{xp_change} XP ({old_xp} -> {member_data['xp']}), Rank: {old_rank} -> {new_rank}")
+        logger.debug(f"Member {member_id}: +{xp_change} XP ({old_xp} -> {member_data['xp']}) [x{multiplier}], Rank: {old_rank} -> {new_rank}")
+
+        # Return whether rank changed
+        return old_rank != new_rank, new_rank
+
+    def add_xp_and_gmp(
+        self,
+        member_id: int,
+        guild_id: int,
+        gmp_change: int,
+        xp_change: int,
+        activity_type: Optional[str] = None
+    ) -> Tuple[bool, str]:
+        """
+        Add XP and GMP to member and check for rank changes.
+
+        Args:
+            member_id: Discord member ID
+            guild_id: Discord guild ID
+            gmp_change: Amount of GMP to add
+            xp_change: Amount of XP to add
+            activity_type: Type of activity (for tracking stats)
+
+        Returns:
+            Tuple of (rank_changed, new_rank)
+        """
+        member_data = self.get_member_data(member_id, guild_id)
+
+        # Store old values
+        old_rank = member_data["rank"]
+        old_xp = member_data["xp"]
+
+        # Apply rank-based multiplier to both XP and GMP
+        multiplier = RANK_XP_MULTIPLIERS.get(old_rank, 1.0)
+        xp_change = int(xp_change * multiplier)
+        gmp_change = int(gmp_change * multiplier)
+
+        # Update stats based on activity type
+        if activity_type:
+            if activity_type == "message":
+                member_data["messages_sent"] += 1
+            elif activity_type == "voice_minute":
+                member_data["voice_minutes"] += 1
+            elif activity_type == "reaction":
+                member_data["reactions_given"] += 1
+            elif activity_type == "reaction_received":
+                member_data["reactions_received"] += 1
+
+        # Add XP and GMP
+        member_data["xp"] += xp_change
+        member_data["gmp"] += gmp_change
+
+        use_legacy = member_data.get('legacy_progression', False)
+
+        # Recalculate rank based on new XP
+        new_rank, new_icon = calculate_rank_from_xp(member_data["xp"], use_legacy=use_legacy)
+        member_data["rank"] = new_rank
+        member_data["rank_icon"] = new_icon
+
+        # Schedule save
+        self.schedule_save()
+
+        # Log the change
+        logger.debug(f"Member {member_id}: +{xp_change} XP (+{gmp_change} GMP) [x{multiplier}], Rank: {old_rank} -> {new_rank}")
 
         # Return whether rank changed
         return old_rank != new_rank, new_rank
