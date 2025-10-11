@@ -22,7 +22,6 @@ COMMAND_NAMES = {
     "daily": "daily",            # Daily supply drop
 
     # Info commands
-    "codec": "codec",            # Codec conversation
 
     # Profile commands
     "profile": "profile",        # View profile card
@@ -49,29 +48,7 @@ MGS_QUOTES: List[str] = [
     "The future is not some place we are going, but one we are creating."
 ]
 
-# MGS Codec sounds for alerts
-MGS_CODEC_SOUNDS: List[str] = [
-    "*beep* *beep*",
-    "*codec static*",
-    "*digital noise*",
-    "*transmission beep*",
-    "*alert tone*",
-    "*communication signal*"
-]
 
-# Codec conversation responses
-CODEC_RESPONSES: List[str] = [
-    "Roger that.",
-    "Understood.",
-    "*codec static*",
-    "Affirmative.",
-    "Copy that.",
-    "Solid copy.",
-    "Over and out.",
-    "Stay frosty.",
-    "Keep your head down.",
-    "Watch your six."
-]
 
 # XP-BASED RANK PROGRESSION SYSTEM
 # NEW BALANCED PROGRESSION (Oct 2025) - Existing users keep old thresholds

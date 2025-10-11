@@ -75,7 +75,6 @@ BIO_MAX_LENGTH = 150
 # TASK INTERVALS (minutes)
 # ═══════════════════════════════════════════════════════════════════
 
-ALERT_CHECK_INTERVAL = 60       # Random codec alerts
 VOICE_TRACK_INTERVAL = 1        # Voice activity tracking
 BACKUP_INTERVAL = 360           # Data backup (6 hours)
 AUTO_SAVE_INTERVAL = 5          # Auto-save pending changes
@@ -115,7 +114,6 @@ IMAGE_CACHE_TTL = 300  # seconds
 # ═══════════════════════════════════════════════════════════════════
 
 FEATURES = {
-    'codec_conversations': True,
     'daily_streaks': True,
     'voice_activity_tracking': True,
     'server_events': True,
@@ -123,13 +121,6 @@ FEATURES = {
     'neon_database': True,
     'word_up_game': True,  # Word-Up game moderation
 }
-
-# ═══════════════════════════════════════════════════════════════════
-# CODEC SYSTEM
-# ═══════════════════════════════════════════════════════════════════
-
-CODEC_CONVERSATION_TIMEOUT = 300  # 5 minutes
-CODEC_ALERT_CHANCE = 0.2          # 20% chance per check interval
 
 # ═══════════════════════════════════════════════════════════════════
 # LOGGING & DEBUG

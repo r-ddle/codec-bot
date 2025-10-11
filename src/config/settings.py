@@ -27,10 +27,8 @@ DATABASE_FILE: str = 'member_data.json'
 # Bot Settings
 COMMAND_PREFIX: str = '!'
 MESSAGE_COOLDOWN: int = 30  # seconds between message XP rewards
-CODEC_CONVERSATION_TIMEOUT: int = 300  # 5 minutes
 
 # Task Loop Intervals (in minutes)
-ALERT_CHECK_INTERVAL: int = 60
 VOICE_TRACK_INTERVAL: int = 10
 BACKUP_INTERVAL: int = 720  # 12 hours
 AUTO_SAVE_INTERVAL: int = 5

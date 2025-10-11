@@ -7,7 +7,7 @@ This bot features:
 - Automatic Discord role assignment based on XP
 - Daily bonuses and leaderboards
 - MGS-themed commands and interactions
-- Server events and codec conversations
+- Server events
 
 Exclusive to: Outer Heaven: Exiled Soldiers
 Owner: r.ddle
@@ -22,6 +22,7 @@ async def load_extensions(bot: MGSBot):
     extensions = [
         # Command cogs
         'cogs.progression',
+        'cogs.profile',  # Profile commands
         'cogs.info',
         'cogs.admin',
         'cogs.slash_commands',

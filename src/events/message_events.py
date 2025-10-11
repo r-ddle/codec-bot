@@ -7,8 +7,8 @@ import asyncio
 import time
 import random
 
-from config.constants import ACTIVITY_REWARDS, CODEC_RESPONSES
-from config.settings import MESSAGE_COOLDOWN, CODEC_CONVERSATION_TIMEOUT, logger
+from config.constants import ACTIVITY_REWARDS
+from config.settings import MESSAGE_COOLDOWN, logger
 from utils.formatters import format_number
 from utils.rank_system import get_rank_data_by_name
 from utils.role_manager import update_member_roles
@@ -22,32 +22,13 @@ class MessageEvents(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        """Handle message events, XP rewards, and codec conversations."""
+        """Handle message events and XP rewards."""
         # Ignore bot messages
         if message.author.bot:
             return
 
         # Ignore DM messages (no guild)
         if message.guild is None:
-            return
-
-        # Check for codec conversation responses
-        if message.channel.id in self.bot.codec_conversations and self.bot.codec_conversations[message.channel.id]['active']:
-            codec_data = self.bot.codec_conversations[message.channel.id]
-
-            if time.time() - codec_data['start_time'] < CODEC_CONVERSATION_TIMEOUT:
-                response = random.choice(CODEC_RESPONSES)
-
-                if codec_data['messages'] >= 3:
-                    response = "I can talk now well... *codec static* Campbell out."
-                    self.bot.codec_conversations[message.channel.id]['active'] = False
-
-                await asyncio.sleep(2)
-                await message.channel.send(response)
-                codec_data['messages'] += 1
-            else:
-                self.bot.codec_conversations[message.channel.id]['active'] = False
-
             return
 
         member_id = message.author.id

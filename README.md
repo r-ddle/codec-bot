@@ -39,7 +39,6 @@ Periodic server-wide events where members compete to reach collective goals. Eve
 - `!rank [@user]` - View detailed rank card with statistics
 - `!daily` - Claim daily XP bonus with streak tracking
 - `!leaderboard [category]` - View server rankings (categories: xp, tactical, messages)
-- `!codec` - Interactive Metal Gear Solid codec conversation
 - `!tactical_test <message>` - Test tactical word detection on a message
 - `!help` - Complete command manual
 - `!profile [@user]` - View member profile card
@@ -95,7 +94,7 @@ The bot uses a balanced XP progression system for new members, while maintaining
 
 ### Tactical Vocabulary
 
-The bot recognizes over 100 tactical and Metal Gear Solid-related words including military terms, stealth operations vocabulary, and character names. Using these words in your messages grants bonus XP. Examples include: tactical, stealth, operation, infiltrate, metal gear, snake, foxhound, codec, and many more.
+The bot recognizes over 100 tactical and Metal Gear Solid-related words including military terms, stealth operations vocabulary, and character names. Using these words in your messages grants bonus XP. Examples include: tactical, stealth, operation, infiltrate, metal gear, snake, foxhound, and many more.
 
 ## Word-Up Game
 
