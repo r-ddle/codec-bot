@@ -19,6 +19,7 @@ from .image_gen import (
     CODEC_BORDER_BRIGHT
 )
 from .profile_card_gen import create_profile_avatar, wrap_text
+from .rank_system import get_next_rank_info
 
 def draw_progress_bar(draw, x, y, width, height, percentage, color_fill, color_bg):
     """Draws a progress bar with percentage fill."""
@@ -49,6 +50,105 @@ def calculate_stat_percentage(value, max_value):
         return 0
     return min(100, int((value / max_value) * 100))
 
+def calculate_next_rank_progress(current_xp: int, current_rank: str, use_legacy: bool = False) -> int:
+    """
+    Calculate percentage progress towards the next rank.
+
+    Args:
+        current_xp: Current experience points
+        current_rank: Current rank name
+        use_legacy: Whether to use legacy rank progression
+
+    Returns:
+        Percentage (0-100) of progress to next rank
+    """
+    next_rank_info = get_next_rank_info(current_xp, current_rank, use_legacy)
+
+    # If at max rank, return 100%
+    if not next_rank_info:
+        return 100
+
+    current_rank_xp = next_rank_info['current_rank_xp']
+    next_rank_xp = next_rank_info['next_xp']
+
+    # Calculate XP needed in this tier
+    xp_in_tier = current_xp - current_rank_xp
+    xp_needed_for_tier = next_rank_xp - current_rank_xp
+
+    if xp_needed_for_tier <= 0:
+        return 100
+
+    percentage = int((xp_in_tier / xp_needed_for_tier) * 100)
+    return min(100, max(0, percentage))
+
+def calculate_dynamic_message_goal(server_avg_messages: int = 0) -> int:
+    """
+    Calculate a dynamic monthly message goal based on server activity.
+
+    If server average is available, sets goal at 75% of server average
+    (encouraging but achievable). Otherwise uses sensible defaults.
+
+    Args:
+        server_avg_messages: Average messages per active member this month
+
+    Returns:
+        Dynamic message goal for the month
+    """
+    if server_avg_messages > 0:
+        # Set goal at 75% of server average (encouraging but achievable)
+        dynamic_goal = int(server_avg_messages * 0.75)
+        # Clamp between reasonable bounds (100-2000)
+        return max(100, min(2000, dynamic_goal))
+
+    # Default fallback: ~17 messages per day for 30 days
+    return 500
+
+def calculate_dynamic_activity_tier(xp, messages, voice_hours, current_rank: str = "Rookie",
+                                   use_legacy: bool = False, server_avg_messages: int = 0):
+    """
+    Calculates dynamic activity tier based on current month's stats.
+    Returns percentages based on realistic monthly activity benchmarks.
+
+    This system is designed to be encouraging and reset monthly:
+    - XP: Shows progress towards NEXT RANK (not arbitrary benchmarks)
+    - Messages: Dynamic goal based on server activity (~75% of server average)
+    - Voice Hours: 10 = 50%, 20 = 100% (~40 min/day)
+
+    Args:
+        xp: Current XP (not used for percentage, see calculate_next_rank_progress)
+        messages: Messages sent this month
+        voice_hours: Voice hours this month
+        current_rank: Current rank name
+        use_legacy: Whether user uses legacy progression
+        server_avg_messages: Server average messages for dynamic goal
+
+    NOTE: These stats should reset monthly in sync with leaderboard resets!
+    """
+    # XP percentage is now based on NEXT RANK progress (calculated separately)
+    xp_pct = calculate_next_rank_progress(xp, current_rank, use_legacy)
+
+    # Messages: Dynamic goal based on server activity
+    msg_goal = calculate_dynamic_message_goal(server_avg_messages)
+    msg_pct = min(100, int((messages / msg_goal) * 100))
+
+    # Voice: Keep existing system (20 hours = 100%)
+    voice_pct = min(100, int((voice_hours / 20) * 100))
+
+    return xp_pct, msg_pct, voice_pct
+
+def get_activity_status(overall_pct):
+    """Returns activity status label based on percentage."""
+    if overall_pct >= 80:
+        return "HIGHLY ACTIVE"
+    elif overall_pct >= 60:
+        return "ACTIVE"
+    elif overall_pct >= 40:
+        return "MODERATE"
+    elif overall_pct >= 20:
+        return "LOW ACTIVITY"
+    else:
+        return "MINIMAL"
+
 def generate_profile_new(
     username: str,
     role_name: str,
@@ -56,7 +156,10 @@ def generate_profile_new(
     bio_text: Optional[str],
     xp: int,
     messages: int,
-    voice_hours: int
+    voice_hours: int,
+    current_rank: str = "Rookie",
+    use_legacy: bool = False,
+    server_avg_messages: int = 0
 ):
     """
     Generates an enhanced MGS Codec-style profile card with improved UI.
@@ -65,11 +168,13 @@ def generate_profile_new(
         username: Discord username
         role_name: User's role name
         avatar_url: URL to user's avatar
-        member_since: Member since date (e.g., "SEPT 2025")
         bio_text: User bio (optional)
         xp: XP amount
         messages: Message count
         voice_hours: Voice time in hours
+        current_rank: Current rank name for next rank progress calculation
+        use_legacy: Whether user uses legacy rank progression
+        server_avg_messages: Server average messages for dynamic goal calculation
 
     Returns:
         PIL Image object
@@ -188,14 +293,11 @@ def generate_profile_new(
     draw_section_label(draw, 50, current_y, "TACTICAL STATISTICS", font_subtitle)
     current_y += 28
 
-    # Calculate stat percentages for visual feedback
-    xp_max = 20000
-    msg_max = 5000
-    voice_max = 200
-
-    xp_pct = calculate_stat_percentage(xp, xp_max)
-    msg_pct = calculate_stat_percentage(messages, msg_max)
-    voice_pct = calculate_stat_percentage(voice_hours, voice_max)
+    # Calculate dynamic stat percentages based on monthly activity
+    # XP shows progress to NEXT RANK, Messages use dynamic server-based goals
+    xp_pct, msg_pct, voice_pct = calculate_dynamic_activity_tier(
+        xp, messages, voice_hours, current_rank, use_legacy, server_avg_messages
+    )
 
     # Stats grid layout
     stats_data = [
@@ -261,18 +363,18 @@ def generate_profile_new(
     status_width = width - 100
 
     # Status label
-    safe_draw_text(draw, (status_x, current_y), "ACTIVITY STATUS:",
+    safe_draw_text(draw, (status_x, current_y), "MONTHLY ACTIVITY:",
                   primary_font=font_small, fill=CODEC_GREEN_TEXT)
 
     # Calculate overall activity (average of percentages)
     overall_activity = (xp_pct + msg_pct + voice_pct) // 3
-    activity_label = "ACTIVE" if overall_activity > 60 else "MODERATE" if overall_activity > 30 else "LOW"
+    activity_label = get_activity_status(overall_activity)
 
     try:
-        label_bbox = draw.textbbox((0, 0), "ACTIVITY STATUS:", font=font_small)
+        label_bbox = draw.textbbox((0, 0), "MONTHLY ACTIVITY:", font=font_small)
         label_width = label_bbox[2] - label_bbox[0]
     except:
-        label_width = 100
+        label_width = 110
 
     safe_draw_text(draw, (status_x + label_width + 10, current_y), activity_label,
                   primary_font=font_small, fill=CODEC_GREEN_BRIGHT)
@@ -298,7 +400,7 @@ def generate_profile_new(
                   primary_font=font_small, fill=CODEC_GREEN_TEXT)
 
     # Center: Main footer
-    footer_text = "<< OUTER HEAVEN: EXCILED UNITS  >>"
+    footer_text = "<< OUTER HEAVEN: EXILED UNITS  >>"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_small)
         footer_width = footer_bbox[2] - footer_bbox[0]
@@ -336,13 +438,17 @@ def generate_profile_new_bg(
     bio_text: Optional[str],
     xp: int,
     messages: int,
-    voice_hours: int
+    voice_hours: int,
+    current_rank: str = "Rookie",
+    use_legacy: bool = False,
+    server_avg_messages: int = 0
 ):
     """
     Enhanced version of generate_profile_new with background effects.
     For now, just calls the basic version.
     """
-    return generate_profile_new(username, role_name, avatar_url, bio_text, xp, messages, voice_hours)
+    return generate_profile_new(username, role_name, avatar_url, bio_text, xp, messages, voice_hours,
+                                current_rank, use_legacy, server_avg_messages)
 
 
 async def generate_profile_new_nitro(
@@ -352,10 +458,14 @@ async def generate_profile_new_nitro(
     bio_text: Optional[str],
     xp: int,
     messages: int,
-    voice_hours: int
+    voice_hours: int,
+    current_rank: str = "Rookie",
+    use_legacy: bool = False,
+    server_avg_messages: int = 0
 ):
     """
     Nitro version of generate_profile_new with enhanced effects.
     For now, just calls the basic version.
     """
-    return generate_profile_new(username, role_name, avatar_url, bio_text, xp, messages, voice_hours)
+    return generate_profile_new(username, role_name, avatar_url, bio_text, xp, messages, voice_hours,
+                                current_rank, use_legacy, server_avg_messages)

@@ -3,7 +3,6 @@ import discord
 from discord.ext import commands
 from io import BytesIO
 import asyncio
-from utils.profile_card_gen import generate_simple_profile_card
 from utils.profile_card_new import (
     generate_profile_new,
     generate_profile_new_bg,
@@ -14,6 +13,34 @@ from utils.rate_limiter import enforce_rate_limit
 class ProfileCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    def calculate_server_avg_messages(self, guild_id: int) -> int:
+        """
+        Calculate average messages per active member for dynamic goal setting.
+        Uses current month's data to set realistic, server-specific goals.
+
+        Returns:
+            Average messages per active member, or 0 if no data
+        """
+        try:
+            all_members = self.bot.member_data.data.get(guild_id, {})
+
+            # Filter active members (those with messages this period)
+            active_members = [
+                data for data in all_members.values()
+                if isinstance(data, dict) and data.get('messages_sent', 0) > 0
+            ]
+
+            if not active_members:
+                return 0
+
+            # Calculate average
+            total_messages = sum(m.get('messages_sent', 0) for m in active_members)
+            avg = total_messages // len(active_members)
+
+            return avg
+        except Exception:
+            return 0
 
     @commands.command(name='profile')
     @enforce_rate_limit('rank')
@@ -27,22 +54,25 @@ class ProfileCommands(commands.Cog):
         async with ctx.typing():
             try:
                 member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
-                joined_at = target.joined_at
-                member_since = joined_at.strftime("%b %Y").upper() if joined_at else "UNKNOWN"
                 top_role = next((role.name for role in reversed(target.roles) if role.name != "@everyone"), "NO ROLE")
                 bio_text = member_data.get('bio', 'No bio set.')
                 voice_hours = member_data.get('voice_minutes', 0) // 60
 
+                # Calculate server average for dynamic message goals
+                server_avg = self.calculate_server_avg_messages(ctx.guild.id)
+
                 img = await asyncio.to_thread(
-                    generate_simple_profile_card,
+                    generate_profile_new,
                     username=target.display_name,
                     role_name=top_role,
                     avatar_url=target.avatar.url if target.avatar else None,
-                    member_since=member_since,
                     bio_text=bio_text,
                     xp=member_data.get('xp', 0),
                     messages=member_data.get('messages_sent', 0),
-                    voice_hours=voice_hours
+                    voice_hours=voice_hours,
+                    current_rank=member_data.get('rank', 'Rookie'),
+                    use_legacy=member_data.get('legacy_progression', False),
+                    server_avg_messages=server_avg
                 )
 
                 buffer = BytesIO()
@@ -87,6 +117,9 @@ class ProfileCommands(commands.Cog):
                 bio_text = member_data.get('bio', 'No bio set.')
                 voice_hours = member_data.get('voice_minutes', 0) // 60
 
+                # Calculate server average for dynamic message goals
+                server_avg = self.calculate_server_avg_messages(ctx.guild.id)
+
                 img = await asyncio.to_thread(
                     generate_profile_new,
                     username=target.display_name,
@@ -95,7 +128,10 @@ class ProfileCommands(commands.Cog):
                     bio_text=bio_text,
                     xp=member_data.get('xp', 0),
                     messages=member_data.get('messages_sent', 0),
-                    voice_hours=voice_hours
+                    voice_hours=voice_hours,
+                    current_rank=member_data.get('rank', 'Rookie'),
+                    use_legacy=member_data.get('legacy_progression', False),
+                    server_avg_messages=server_avg
                 )
 
                 buffer = BytesIO()
@@ -123,6 +159,9 @@ class ProfileCommands(commands.Cog):
                 bio_text = member_data.get('bio', 'No bio set.')
                 voice_hours = member_data.get('voice_minutes', 0) // 60
 
+                # Calculate server average for dynamic message goals
+                server_avg = self.calculate_server_avg_messages(ctx.guild.id)
+
                 img = await asyncio.to_thread(
                     generate_profile_new_bg,
                     username=target.display_name,
@@ -131,7 +170,10 @@ class ProfileCommands(commands.Cog):
                     bio_text=bio_text,
                     xp=member_data.get('xp', 0),
                     messages=member_data.get('messages_sent', 0),
-                    voice_hours=voice_hours
+                    voice_hours=voice_hours,
+                    current_rank=member_data.get('rank', 'Rookie'),
+                    use_legacy=member_data.get('legacy_progression', False),
+                    server_avg_messages=server_avg
                 )
 
                 buffer = BytesIO()
@@ -159,25 +201,21 @@ class ProfileCommands(commands.Cog):
                 bio_text = member_data.get('bio', 'No bio set.')
                 voice_hours = member_data.get('voice_minutes', 0) // 60
 
-                # Try to get banner URL if user has Nitro
-                banner_url = None
-                try:
-                    user = await self.bot.fetch_user(target.id)
-                    if user.banner:
-                        banner_url = user.banner.url
-                except:
-                    pass
+                # Calculate server average for dynamic message goals
+                server_avg = self.calculate_server_avg_messages(ctx.guild.id)
 
                 img = await asyncio.to_thread(
                     generate_profile_new_nitro,
                     username=target.display_name,
                     role_name=top_role,
                     avatar_url=target.avatar.url if target.avatar else None,
-                    banner_url=banner_url,
                     bio_text=bio_text,
                     xp=member_data.get('xp', 0),
                     messages=member_data.get('messages_sent', 0),
-                    voice_hours=voice_hours
+                    voice_hours=voice_hours,
+                    current_rank=member_data.get('rank', 'Rookie'),
+                    use_legacy=member_data.get('legacy_progression', False),
+                    server_avg_messages=server_avg
                 )
 
                 buffer = BytesIO()
@@ -188,6 +226,13 @@ class ProfileCommands(commands.Cog):
                 await ctx.send(f"❌ Error: {e}")
                 import traceback
                 traceback.print_exc()
+
+    @commands.command(name='serveravg')
+    @commands.has_permissions(administrator=True)
+    async def server_avg_messages(self, ctx):
+        """Check server average messages per active member (Admin only)"""
+        avg = self.calculate_server_avg_messages(ctx.guild.id)
+        await ctx.send(f"{avg}")
 
 async def setup(bot):
     await bot.add_cog(ProfileCommands(bot))

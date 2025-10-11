@@ -32,6 +32,7 @@ async def load_extensions(bot: MGSBot):
         'events.member_events',
         'events.message_events',
         'events.reaction_events',
+        'events.voice_events',  # Voice channel tracking
     ]
 
     for extension in extensions:
