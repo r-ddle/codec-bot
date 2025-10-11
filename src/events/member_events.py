@@ -2,152 +2,37 @@
 Member events - Handlers for member join and ready events.
 """
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from datetime import datetime, timezone
-import random
-import asyncio
 
 from config.settings import WELCOME_CHANNEL_ID, logger
 
 
 class MemberEvents(commands.Cog):
-    """Event handlers for member-related activities with MGS-themed activity rotation."""
+    """Event handlers for member-related activities with simple streaming presence."""
 
     def __init__(self, bot):
         self.bot = bot
-        self.activity_mode = 0  # 0=Rich, 1=Streaming, 2=Quote
 
-        # MGS1 Codec Quotes
-        self.mgs_quotes = [
-            "A surveillance camera?!",
-            "Snake, what happened? Snake? SNAAAAKE!",
-            "It's just like one of my Japanese animes!",
-            "You're that ninja...",
-            "Metal Gear?! It can't be!",
-            "Colonel, what's a Russian gunship doing here?",
-            "War has changed.",
-            "Kept you waiting, huh?",
-            "This is Snake. Colonel, can you hear me?",
-            "Whose footprints are these?",
-            "I'm no hero. Never was, never will be.",
-            "Stealth camouflage?!",
-            "Cipher... Zero... Such a lust for revenge!",
-            "Nanomachines, son!",
-            "Age hasn't slowed you down one bit."
-        ]
-
-        self.activity_rotation.start()
-
-    def cog_unload(self):
-        """Clean shutdown of background task"""
-        self.activity_rotation.cancel()
-
-    @tasks.loop(minutes=5)
-    async def activity_rotation(self):
-        """
-        Rotates through three activity types every 5 minutes.
-
-        Trade-off Analysis:
-        - 5min interval: Balances freshness vs API rate limits
-        - Sequential rotation: Predictable pattern, easy to debug
-        """
+    async def _update_presence(self):
+        """Update streaming presence with current member count."""
         try:
-            if self.activity_mode == 0:
-                await self._set_rich_presence()
-            elif self.activity_mode == 1:
-                await self._set_streaming_activity()
-            else:
-                await self._set_quote_activity()
+            # Calculate total members across all guilds
+            total_members = sum(guild.member_count for guild in self.bot.guilds)
 
-            # Cycle to next mode
-            self.activity_mode = (self.activity_mode + 1) % 3
+            activity = discord.Streaming(
+                name=f"Watching over {total_members} soldiers",
+                url="https://www.twitch.tv/metalgearsolid"
+            )
 
-        except discord.HTTPException as e:
-            logger.error(f"HTTP error setting activity: {e.status} - {e.text}")
-        except discord.InvalidData as e:
-            logger.error(f"Invalid activity data: {e}")
+            await self.bot.change_presence(
+                activity=activity,
+                status=discord.Status.online
+            )
+            print(f"[OK] Presence updated: Watching over {total_members} soldiers")
+
         except Exception as e:
-            logger.error(f"Unexpected error in activity rotation: {type(e).__name__}: {e}")
-
-    @activity_rotation.before_loop
-    async def before_activity_rotation(self):
-        """Wait for bot to be ready before starting activity rotation"""
-        await self.bot.wait_until_ready()
-        print("[GAME] MGS Activity System initialized")
-
-    async def _set_rich_presence(self):
-        """
-        Rich Presence with Codec theme.
-
-        IMPORTANT: Requires Discord Developer Portal setup:
-        1. Go to: https://discord.com/developers/applications/{YOUR_APP_ID}/rich-presence/assets
-        2. Upload assets with these exact names:
-           - 'codec_screen' (400x400px PNG - green terminal aesthetic)
-           - 'foxhound_logo' (256x256px PNG - FOXHOUND emblem)
-        """
-        activity = discord.Activity(
-            type=discord.ActivityType.playing,
-            name="Metal Gear Solid",
-            state="Infiltrating Shadow Moses",
-            details="Codec Frequency: 140.85",
-            timestamps={"start": int(datetime.now(timezone.utc).timestamp())},
-            assets={
-                "large_image": "codec_screen",
-                "large_text": "Tactical Espionage Action",
-                "small_image": "foxhound_logo",
-                "small_text": "FOXHOUND"
-            }
-        )
-
-        await self.bot.change_presence(
-            activity=activity,
-            status=discord.Status.online
-        )
-        print("[OK] Activity: Rich Presence (Codec Mode)")
-
-    async def _set_streaming_activity(self):
-        """
-        Streaming activity showing server management stats.
-
-        Why Streaming type?
-        - Displays purple "LIVE" indicator
-        - Allows dynamic member count in name
-        - URL can link to actual server info (optional)
-        """
-        # Calculate total members across all guilds
-        total_members = sum(guild.member_count for guild in self.bot.guilds)
-
-        activity = discord.Streaming(
-            name=f"Managing {total_members} Soldiers",
-            url="https://www.twitch.tv/metalgearsolid",  # Required for Streaming type
-            details="Server Operations",
-            state="Tactical Command"
-        )
-
-        await self.bot.change_presence(
-            activity=activity,
-            status=discord.Status.dnd  # Red status for "on a mission"
-        )
-        print(f"[OK] Activity: Streaming Mode ({total_members} members)")
-
-    async def _set_quote_activity(self):
-        """
-        Rotating MGS quotes in Game activity.
-
-        Why Game type for quotes?
-        - Simplest API (no asset requirements)
-        - "Playing [quote]" format fits naturally
-        - Lowest rate limit risk
-        """
-        quote = random.choice(self.mgs_quotes)
-
-        activity = discord.Game(name=quote)
-
-        await self.bot.change_presence(
-            activity=activity,
-            status=discord.Status.idle  # Yellow status for alert phase
-        )
-        print(f"[OK] Activity: Quote Mode - '{quote}'")
+            logger.error(f"Error updating presence: {e}")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -165,7 +50,9 @@ class MemberEvents(commands.Cog):
 
         print(" Bot is fully ready and operational!")
         print(" XP-based ranking system active!")
-        print("[GAME] MGS Activity System will start rotating presences")
+
+        # Set initial streaming presence
+        await self._update_presence()
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -217,6 +104,9 @@ class MemberEvents(commands.Cog):
             logger.info(f"Welcome sent to #{welcome_channel.name} for {member.name}")
 
             await self.bot.member_data.save_data_async()
+
+            # Update presence with new member count
+            await self._update_presence()
 
         except Exception as e:
             logger.error(f"Error in welcome system: {e}", exc_info=True)
