@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.daily_supply_gen import generate_daily_supply_card, generate_promotion_card
 from utils.image_gen import generate_rank_card
+from utils.leaderboard_gen import generate_leaderboard
+from utils.profile_card_new import generate_profile_new
 
 print("🎮 Testing MGS Image Generators...")
 print("=" * 60)
@@ -17,7 +19,7 @@ try:
     # Test 1: Rank Card
     print("\n1️⃣ Testing Rank Card...")
     rank_img = generate_rank_card(
-        username="Solid Snake",
+        username="Testing Long Username",
         rank_badge="🎖️",
         rank_name="Captain",
         xp=5320,
@@ -37,10 +39,10 @@ try:
     # Test 2: Daily Supply Drop (Normal)
     print("\n2️⃣ Testing Daily Supply Drop (Normal)...")
     daily_img = generate_daily_supply_card(
-        username="Solid Snake",
+        username="Testing Long Username",
         xp_reward=100,
         current_xp=8500,
-        current_rank="Captain",
+        current_rank="Lieutenant",
         streak_days=15,
         promoted=False
     )
@@ -54,7 +56,7 @@ try:
     # Test 3: Daily Supply Drop (With Promotion)
     print("\n3️⃣ Testing Daily Supply Drop (With Promotion)...")
     daily_promo_img = generate_daily_supply_card(
-        username="Big Boss",
+        username="Testing Long Username",
         xp_reward=100,
         current_xp=12000,
         current_rank="Major",
@@ -73,9 +75,9 @@ try:
     # Test 4: Promotion Card
     print("\n4️⃣ Testing Promotion Card...")
     promo_img = generate_promotion_card(
-        username="Revolver Ocelot",
+        username="Testing Long Username",
         old_rank="Lieutenant",
-        new_rank="Captain",
+        new_rank="Lietutenant",
         current_xp=8500,
         role_granted="Captain"
     )

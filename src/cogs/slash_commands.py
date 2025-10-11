@@ -9,11 +9,12 @@ import asyncio
 
 from utils.formatters import format_number
 from config.constants import MGS_RANKS
-from utils.daily_supply_gen import generate_daily_supply_card
+from utils.daily_supply_gen import generate_daily_supply_card, generate_promotion_card
 from utils.server_event_gen import generate_event_progress
 from utils.rank_system import get_rank_data_by_name
 from utils.role_manager import update_member_roles
 from utils.rate_limiter import enforce_rate_limit
+from config.settings import logger
 from typing import Optional
 
 
@@ -147,7 +148,6 @@ class SlashCommands(commands.Cog):
             )
 
     @app_commands.command(name="daily", description="Claim your daily bonus of XP")
-    @enforce_rate_limit('daily')
     async def daily_slash(self, interaction: discord.Interaction):
         """Slash command version of !daily - claim daily rewards."""
         await interaction.response.defer()  # Image generation might take a moment
@@ -157,7 +157,53 @@ class SlashCommands(commands.Cog):
             interaction.guild.id
         )
 
-        if success:
+        if not success:
+            # Already claimed today - show time remaining
+            member_data = self.bot.member_data.get_member_data(interaction.user.id, interaction.guild.id)
+            last_daily = member_data.get("last_daily")
+
+            if last_daily:
+                from datetime import datetime, timezone, timedelta
+                last_claim_date = datetime.strptime(last_daily, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                next_claim_time = last_claim_date + timedelta(days=1)
+                now = datetime.now(timezone.utc)
+                time_remaining = next_claim_time - now
+
+                if time_remaining.total_seconds() > 0:
+                    hours, remainder = divmod(int(time_remaining.total_seconds()), 3600)
+                    minutes, seconds = divmod(remainder, 60)
+
+                    if hours > 0:
+                        time_str = f"{hours}h {minutes}m {seconds}s"
+                    elif minutes > 0:
+                        time_str = f"{minutes}m {seconds}s"
+                    else:
+                        time_str = f"{seconds}s"
+                else:
+                    time_str = "a few seconds"
+            else:
+                time_str = "unknown"
+
+            embed = discord.Embed(
+                title="⏰ DAILY ALREADY CLAIMED",
+                description="You've already claimed your daily bonus today!",
+                color=0xff6b35
+            )
+            embed.add_field(
+                name="NEXT CLAIM",
+                value=f"Available in **{time_str}**",
+                inline=False
+            )
+            embed.add_field(
+                name="CURRENT STATS",
+                value=f"```\nXP: {member_data.get('xp', 0):,}\nRank: {member_data.get('rank', 'Rookie')}\nStreak: {member_data.get('daily_streak', 0)} days\n```",
+                inline=False
+            )
+            embed.set_footer(text="Outer Heaven: Exiled Units")
+            await interaction.followup.send(embed=embed)
+            return
+
+        # Success - proceed with normal daily claim logic
             # Get updated member data
             member_data = self.bot.member_data.get_member_data(interaction.user.id, interaction.guild.id)
 
@@ -193,6 +239,37 @@ class SlashCommands(commands.Cog):
                 file = discord.File(fp=image_bytes, filename="daily_supply.png")
                 await interaction.followup.send(file=file)
 
+                # Send promotion announcement to specific channel if promoted
+                if rank_changed and new_rank:
+                    try:
+                        promo_channel = interaction.client.get_channel(1423506534872387584)
+                        if promo_channel:
+                            # Get old rank for promotion card
+                            old_rank = member_data.get('rank', 'Unknown')
+
+                            # Generate promotion card
+                            promo_img = generate_promotion_card(
+                                username=interaction.user.display_name,
+                                old_rank=old_rank,
+                                new_rank=new_rank,
+                                current_xp=member_data['xp'],
+                                role_granted=role_granted
+                            )
+
+                            # Convert to Discord file
+                            promo_bytes = BytesIO()
+                            promo_img.save(promo_bytes, format='PNG')
+                            promo_bytes.seek(0)
+                            promo_file = discord.File(promo_bytes, filename="promotion.png")
+
+                            # Send promotion message
+                            await promo_channel.send(
+                                f"{interaction.user.mention} has been promoted to {new_rank}!",
+                                file=promo_file
+                            )
+                    except Exception as e:
+                        logger.error(f"Error sending promotion announcement: {e}")
+
             except Exception as e:
                 # Fallback to text embed if image fails
                 embed = discord.Embed(
@@ -212,13 +289,6 @@ class SlashCommands(commands.Cog):
 
                 embed.set_footer(text=f"Error generating image: {e}")
                 await interaction.followup.send(embed=embed)
-        else:
-            embed = discord.Embed(
-                title="⏰ ALREADY CLAIMED",
-                description="You've already claimed your daily bonus. Come back tomorrow!",
-                color=0xff9900
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="leaderboard", description="View the server leaderboard")
     @app_commands.describe(

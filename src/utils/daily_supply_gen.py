@@ -256,19 +256,15 @@ def draw_streak_display(draw, x, y, streak_days, font_large, font_small):
     # Milestone badge
     milestone_y = y + 35
     if streak_days >= 100:
-        badge_text = "🏆 LEGENDARY STREAK"
         badge_color = STREAK_MILESTONE_100
     elif streak_days >= 30:
-        badge_text = "⭐ ELITE STREAK"
         badge_color = STREAK_MILESTONE_30
     elif streak_days >= 7:
-        badge_text = "🔥 HOT STREAK"
         badge_color = STREAK_MILESTONE_7
     else:
-        badge_text = f"DAY {streak_days} OPERATION"
         badge_color = CODEC_GREEN_TEXT
 
-    draw.text((x, milestone_y), badge_text, fill=badge_color, font=font_small)
+    draw.text((x, milestone_y), fill=badge_color, font=font_small)
 
     # Progress bar to next milestone
     milestones = [7, 30, 100]
@@ -372,10 +368,10 @@ def draw_promotion_banner(draw, x, y, width, new_rank, font_large, font_medium, 
     draw.rectangle([x, y, x + width, y + banner_height],
                   fill=bg_color, outline=border_color, width=4)
 
-    # Stars decoration
-    star = "★"
-    draw.text((x + 15, y + 20), star, fill=CODEC_ORANGE, font=font_large)
-    draw.text((x + width - 45, y + 20), star, fill=CODEC_ORANGE, font=font_large)
+    # Stars decoration - removed for unicode compatibility
+    # star = "★"
+    # draw.text((x + 15, y + 20), star, fill=CODEC_ORANGE, font=font_large)
+    # draw.text((x + width - 45, y + 20), star, fill=CODEC_ORANGE, font=font_large)
 
     # Text
     promo_text = "PROMOTION ACHIEVED!"
@@ -420,7 +416,7 @@ def generate_daily_supply_card(username, xp_reward,
     username = sanitize_username(username)
 
     # Optimized dimensions for better spacing
-    width, height = 1000, 700
+    width, height = 750, 620
 
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
@@ -441,10 +437,10 @@ def generate_daily_supply_card(username, xp_reward,
              fill=CODEC_BORDER_BRIGHT, font=font_title)
 
     # Agent name
-    draw.text((50, header_y + 60), f"AGENT: {username.upper()}",
+    draw.text((90, header_y + 70), f"AGENT: {username.upper()}",
              fill=CODEC_GREEN_TEXT, font=font_medium)
 
-    draw_divider(draw, 50, header_y + 100, width - 100)
+    draw_divider(draw, 50, header_y + 115, width - 100)
 
     # === STREAK SECTION ===
     current_y = header_y + 130
@@ -455,27 +451,21 @@ def generate_daily_supply_card(username, xp_reward,
 
     # Fire icons and streak count
     fire_x = 50
-    fire_y = current_y + 35
+    fire_y = current_y + 50
     num_fires = min(streak_days, 5)
     for i in range(num_fires):
         draw_fire_icon(draw, fire_x + i * 35, fire_y, size=26, color=streak_color)
 
+    # Align streak text vertically with icons
+    bbox = draw.textbbox((0, 0), "×0 DAYS", font=font_large)
+    icon_height = 15
+    text_height = bbox[3] - bbox[1]
+    # Center text with icons
+    text_y = fire_y + (icon_height - text_height) // 2
+
     streak_text = f"×{streak_days} DAYS"
-    draw.text((fire_x + num_fires * 35 + 15, fire_y), streak_text,
-             fill=streak_color, font=font_large)
-
-    # Milestone badge
-    if streak_days >= 100:
-        badge_text = "LEGENDARY"
-    elif streak_days >= 30:
-        badge_text = "ELITE"
-    elif streak_days >= 7:
-        badge_text = "HOT STREAK"
-    else:
-        badge_text = "ACTIVE"
-
-    draw.text((fire_x + num_fires * 35 + 280, fire_y + 5), badge_text,
-             fill=streak_color, font=font_normal)
+    draw.text((fire_x + num_fires * 35 + 15, text_y),
+             streak_text, fill=streak_color, font=font_large)
 
     # === REWARDS SECTION ===
     current_y += 110
@@ -483,45 +473,49 @@ def generate_daily_supply_card(username, xp_reward,
 
     rewards_y = current_y + 35
 
-    # Reward box centered
-    box_width = 450
-    box_x = (width - box_width) // 2
-    draw_reward_box(draw, box_x, rewards_y, "EXPERIENCE", xp_reward,
-                   CODEC_BORDER_BRIGHT, font_small, font_large, width=box_width)
+    box_width = 300
+    box_x = 50
+
+    # Calculate vertical position for amount text to center between header and bottom
+    box_height = 100
+    label_y = rewards_y + 12
+    amount_text = f"+{xp_reward:,}"
+    bbox_label = draw.textbbox((0, 0), "EXPERIENCE", font=font_small)
+    label_bottom = label_y + (bbox_label[1] - bbox_label[1])
+    amount_bbox = draw.textbbox((0, 0), amount_text, font=font_large)
+    amount_height = amount_bbox[3] - amount_bbox[1]
+    # Center between label_bottom and box bottom
+    amount_y = label_bottom + ((rewards_y + box_height - label_bottom - amount_height) // 2)
+
+    # Draw box
+    draw.rectangle([box_x, rewards_y, box_x + box_width, rewards_y + box_height],
+                   fill=CODEC_BG_MEDIUM, outline=CODEC_BORDER_BRIGHT, width=3)
+    # Label
+    draw.text((box_x + 15, label_y), "EXPERIENCE", fill=CODEC_GREEN_DIM, font=font_small)
+    # Amount
+    bbox_amount = draw.textbbox((0, 0), amount_text, font=font_large)
+    text_width = bbox_amount[2] - bbox_amount[0]
+    text_x = box_x + (box_width - text_width) // 2
+    draw.text((text_x, amount_y), amount_text, fill=CODEC_BORDER_BRIGHT, font=font_large)
 
     # === CURRENT STATUS ===
     current_y = rewards_y + 130
     draw.text((50, current_y), "► UPDATED STATUS", fill=CODEC_GREEN_DIM, font=font_small)
 
     stats_y = current_y + 35
-    draw_stat_display(draw, 50, stats_y, "TOTAL XP", f"{current_xp:,}",
+    draw_stat_display(draw, 50, stats_y, "TOTAL XP", f"{current_xp}",
                      font_small, font_medium)
-    draw_stat_display(draw, 370, stats_y, "RANK", current_rank,
+    draw_stat_display(draw, 160, stats_y, "RANK", current_rank,
                      font_small, font_medium)
-    draw_stat_display(draw, 690, stats_y, "STREAK", f"{streak_days} DAYS",
+    draw_stat_display(draw, 350, stats_y, "STREAK", f"{streak_days} DAYS",
                      font_small, font_medium)
-
-    # === PROMOTION BANNER (if promoted) ===
-    if promoted and new_rank:
-        promo_y = stats_y + 90
-        promo_width = width - 100
-        promo_height = 60
-
-        draw.rectangle([50, promo_y, 50 + promo_width, promo_y + promo_height],
-                      fill=CODEC_ORANGE, outline=CODEC_YELLOW, width=4)
-
-        promo_text = f"★ PROMOTION: {new_rank} ★"
-        bbox = draw.textbbox((0, 0), promo_text, font=font_large)
-        text_width = bbox[2] - bbox[0]
-        draw.text(((width - text_width) // 2, promo_y + 12), promo_text,
-                 fill=CODEC_BG_DARK, font=font_large)
 
     # === FOOTER ===
-    footer_y = height - 40
-    draw.text((50, footer_y), "◄ Return in 24:00:00 for next supply drop",
+    footer_y = height - 45
+    draw.text((60, footer_y), "Return in 24:00:00 for next supply drop",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 380, footer_y), "Outer Heaven: Exciled Units",
+    draw.text((width - 290, footer_y), "Outer Heaven: Exciled Units",
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===
@@ -549,7 +543,7 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp, role_grant
     """
     username = sanitize_username(username)
 
-    width, height = 1000, 650
+    width, height = 800, 550
 
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
@@ -564,7 +558,7 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp, role_grant
 
     # === HEADER ===
     header_y = 30
-    header_text = "★ PROMOTION ACHIEVED ★"
+    header_text = "PROMOTION ACHIEVED"
     bbox = draw.textbbox((0, 0), header_text, font=font_title)
     text_width = bbox[2] - bbox[0]
     draw.text(((width - text_width) // 2, header_y), header_text,
@@ -581,56 +575,56 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp, role_grant
 
     # Old rank
     draw.text((50, current_y), "PREVIOUS RANK", fill=CODEC_GREEN_DIM, font=font_small)
-    draw.text((50, current_y + 30), old_rank, fill=CODEC_GREEN_TEXT, font=font_large)
+    draw.text((60, current_y + 30), old_rank, fill=CODEC_GREEN_TEXT, font=font_large)
+    old_rank_bbox = draw.textbbox((60, current_y + 30), old_rank, font=font_large)
+    old_padding = 10
+    draw.rectangle([old_rank_bbox[0] - old_padding, old_rank_bbox[1] - old_padding,
+                    old_rank_bbox[2] + old_padding, old_rank_bbox[3] + old_padding],
+                   outline=CODEC_GREEN_TEXT, width=3)
 
     # Arrow
-    arrow_x = width // 2 - 60
-    arrow_y = current_y + 40
-    arrow_text = "►►"
+    arrow_x = width // 2 - 50
+    arrow_y = current_y + 30
+    arrow_text = ">>>>"
     draw.text((arrow_x, arrow_y), arrow_text, fill=CODEC_BORDER_BRIGHT, font=font_huge)
 
     # New rank (highlighted)
-    new_rank_x = width // 2 + 80
+    new_rank_x = width // 2 + 150
     draw.text((new_rank_x, current_y), "NEW RANK", fill=CODEC_ORANGE, font=font_small)
-    draw.text((new_rank_x, current_y + 30), new_rank, fill=CODEC_YELLOW, font=font_large)
+    new_rank_name_x = new_rank_x + 10
+    draw.text((new_rank_name_x, current_y + 30), new_rank, fill=CODEC_YELLOW, font=font_large)
 
     # Highlight box around new rank
-    rank_bbox = draw.textbbox((new_rank_x, current_y + 30), new_rank, font=font_large)
+    rank_bbox = draw.textbbox((new_rank_name_x, current_y + 30), new_rank, font=font_large)
     padding = 10
     draw.rectangle([rank_bbox[0] - padding, rank_bbox[1] - padding,
                    rank_bbox[2] + padding, rank_bbox[3] + padding],
                   outline=CODEC_YELLOW, width=3)
 
     # === STATS & REWARDS ===
-    current_y += 130
+    current_y += 120
     draw.text((50, current_y), "► PROMOTION DETAILS", fill=CODEC_GREEN_DIM, font=font_small)
 
     details_y = current_y + 35
 
     # XP Display
     draw_stat_display(draw, 50, details_y, "TOTAL EXPERIENCE", f"{current_xp:,} XP",
-                     font_small, font_medium)
-
-    # Role granted
-    if role_granted:
-        role_y = details_y + 90
-        role_text = f"✓ Discord Role Granted: {role_granted}"
-        draw.text((50, role_y), role_text, fill=CODEC_YELLOW, font=font_normal)
+                     font_small, font_large)
 
     # === CONGRATULATIONS MESSAGE ===
-    congrats_y = height - 120
-    congrats_text = "MISSION ACCOMPLISHED - CONTINUE OPERATIONS"
+    congrats_y = height - 110
+    congrats_text = "MISSION ACCOMPLISHED: CONTINUE OPERATIONS"
     bbox = draw.textbbox((0, 0), congrats_text, font=font_medium)
     text_width = bbox[2] - bbox[0]
     draw.text(((width - text_width) // 2, congrats_y), congrats_text,
              fill=CODEC_BORDER_BRIGHT, font=font_medium)
 
     # === FOOTER ===
-    footer_y = height - 40
-    draw.text((50, footer_y), "◄ Keep earning XP to reach the next rank",
+    footer_y = height - 45
+    draw.text((60, footer_y), "Keep earning XP to reach the next rank",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 380, footer_y), "Outer Heaven: Exciled Units",
+    draw.text((width - 310, footer_y), "Outer Heaven: Exciled Units",
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===
@@ -650,8 +644,8 @@ if __name__ == "__main__":
     img1 = generate_daily_supply_card(
         username="Solid Snake",
         xp_reward=100,
-        current_xp=8500,
-        current_rank="Captain",
+        current_xp=3000,
+        current_rank="Lieutenant",
         streak_days=15,
         promoted=False
     )
@@ -661,10 +655,10 @@ if __name__ == "__main__":
     # Test Promotion Card
     img2 = generate_promotion_card(
         username="Solid Snake",
-        old_rank="Lieutenant",
-        new_rank="Captain",
-        current_xp=8500,
-        role_granted="Captain"
+        old_rank="Specialist",
+        new_rank="Lieutenant",
+        current_xp=3000,
+        role_granted="Lieutenant"
     )
     img2.save("test_promotion.png")
     print("✅ Promotion card saved as 'test_promotion.png'")

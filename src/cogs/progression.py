@@ -12,9 +12,10 @@ from utils.formatters import format_number, make_progress_bar
 from utils.rank_system import get_rank_data_by_name, get_next_rank_info, MGS_RANKS
 from utils.role_manager import update_member_roles
 from utils.image_gen import generate_rank_card
-from utils.daily_supply_gen import generate_daily_supply_card
+from utils.daily_supply_gen import generate_daily_supply_card, generate_promotion_card
 from utils.leaderboard_gen import generate_leaderboard
 from utils.rate_limiter import enforce_rate_limit
+from config.settings import logger
 
 
 class Progression(commands.Cog):
@@ -231,89 +232,149 @@ class Progression(commands.Cog):
                 traceback.print_exc()
 
     @commands.command(name='daily')
-    @enforce_rate_limit('daily')
     async def daily(self, ctx):
         """Claim daily bonus."""
-        # Rate limiting enforced via decorator
-
         member_id = ctx.author.id
         guild_id = ctx.guild.id
 
         success, xp, rank_changed, new_rank = self.bot.member_data.award_daily_bonus(member_id, guild_id)
 
-        if success:
-            # Get updated member data
+        if not success:
+            # Already claimed today - show time remaining
             member_data = self.bot.member_data.get_member_data(member_id, guild_id)
+            last_daily = member_data.get("last_daily")
 
-            # Get streak info
-            streak_days = member_data.get('daily_streak', 1)
+            if last_daily:
+                from datetime import datetime, timezone, timedelta
+                last_claim_date = datetime.strptime(last_daily, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                next_claim_time = last_claim_date + timedelta(days=1)
+                now = datetime.now(timezone.utc)
+                time_remaining = next_claim_time - now
 
-            # Determine role granted if promoted
-            role_granted = None
-            if rank_changed:
-                role_updated = await update_member_roles(ctx.author, new_rank)
-                if role_updated:
-                    rank_data = get_rank_data_by_name(new_rank)
-                    role_granted = rank_data.get("role_name", new_rank)
+                if time_remaining.total_seconds() > 0:
+                    hours, remainder = divmod(int(time_remaining.total_seconds()), 3600)
+                    minutes, seconds = divmod(remainder, 60)
 
-            # Generate MGS Codec-style supply drop image
-            try:
-                img = generate_daily_supply_card(
-                    username=ctx.author.display_name,
-                    xp_reward=xp,
-                    current_xp=member_data['xp'],
-                    current_rank=member_data['rank'],
-                    streak_days=streak_days,
-                    promoted=rank_changed,
-                    new_rank=new_rank if rank_changed else None,
-                    role_granted=role_granted
-                )
-
-                # Convert to Discord file
-                image_bytes = BytesIO()
-                img.save(image_bytes, format='PNG')
-                image_bytes.seek(0)
-
-                file = discord.File(fp=image_bytes, filename="daily_supply.png")
-                await ctx.send(file=file)
-
-            except Exception as e:
-                # Fallback to text embed if image fails
-                embed = discord.Embed(
-                    title="📦 DAILY SUPPLY DROP",
-                    description=f"**+{format_number(xp)} XP** received!",
-                    color=0x00ff00
-                )
-                embed.add_field(
-                    name="UPDATED STATS",
-                    value=f"```\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
-                    inline=False
-                )
-                if rank_changed:
-                    embed.add_field(name="🎖️ PROMOTION!", value=f"New rank: **{new_rank}**", inline=False)
-                    if role_granted:
-                        embed.add_field(name="✓ ROLE ASSIGNED", value=f"Discord role **{role_granted}** granted!", inline=False)
-
-                embed.set_footer(text=f"Error generating image: {e}")
-                await ctx.send(embed=embed)
-
-            # Schedule a background save; avoid forcing Neon sync here
-            self.bot.member_data.schedule_save()
-            asyncio.create_task(self.bot.member_data.save_data_async(force=False))
-
-        else:
-            now = datetime.now()
-            tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-            time_left = tomorrow - now
-            hours = time_left.seconds // 3600
-            minutes = (time_left.seconds // 60) % 60
+                    if hours > 0:
+                        time_str = f"{hours}h {minutes}m {seconds}s"
+                    elif minutes > 0:
+                        time_str = f"{minutes}m {seconds}s"
+                    else:
+                        time_str = f"{seconds}s"
+                else:
+                    time_str = "a few seconds"
+            else:
+                time_str = "unknown"
 
             embed = discord.Embed(
-                title="Supply Drop Unavailable",
-                description=f"  Already claimed today. Come back later solidier \nNext drop in **{hours:02d} hours and {minutes:02d} minutes**",
-                color=0xff0000
+                title="Daily Already Claimed",
+                description="You've already claimed your daily bonus today!",
+                color=0xff6b35
             )
+            embed.add_field(
+                name="Next Claim",
+                value=f"Available in **{time_str}**",
+                inline=False
+            )
+            embed.add_field(
+                name="Current Stats",
+                value=f"```\nXP: {format_number(member_data.get('xp', 0))}\nRank: {member_data.get('rank', 'Rookie')}\nStreak: {member_data.get('daily_streak', 0)} days\n```",
+                inline=False
+            )
+            embed.set_footer(text="Outer Heaven: Exiled Units")
             await ctx.send(embed=embed)
+            return
+
+        # Success - proceed with normal daily claim logic
+        # Get updated member data
+        member_data = self.bot.member_data.get_member_data(member_id, guild_id)
+
+        # Get streak info
+        streak_days = member_data.get('daily_streak', 1)
+
+        # Determine role granted if promoted
+        role_granted = None
+        if rank_changed:
+            role_updated = await update_member_roles(ctx.author, new_rank)
+            if role_updated:
+                rank_data = get_rank_data_by_name(new_rank)
+                role_granted = rank_data.get("role_name", new_rank)
+
+        # Generate MGS Codec-style supply drop image
+        try:
+            img = generate_daily_supply_card(
+                username=ctx.author.display_name,
+                xp_reward=xp,
+                current_xp=member_data['xp'],
+                current_rank=member_data['rank'],
+                streak_days=streak_days,
+                promoted=rank_changed,
+                new_rank=new_rank if rank_changed else None,
+                role_granted=role_granted
+            )
+
+            # Convert to Discord file
+            image_bytes = BytesIO()
+            img.save(image_bytes, format='PNG')
+            image_bytes.seek(0)
+
+            file = discord.File(fp=image_bytes, filename="daily_supply.png")
+            await ctx.send(file=file)
+
+            # Send promotion announcement to specific channel if promoted
+            if rank_changed and new_rank:
+                try:
+                    promo_channel = self.bot.get_channel(1423506534872387584)
+                    if promo_channel:
+                        # Get old rank for promotion card
+                        old_rank = member_data.get('rank', 'Unknown')
+
+                        # Generate promotion card
+                        promo_img = generate_promotion_card(
+                            username=ctx.author.display_name,
+                            old_rank=old_rank,
+                            new_rank=new_rank,
+                            current_xp=member_data['xp'],
+                            role_granted=role_granted
+                        )
+
+                        # Convert to Discord file
+                        promo_bytes = BytesIO()
+                        promo_img.save(promo_bytes, format='PNG')
+                        promo_bytes.seek(0)
+                        promo_file = discord.File(promo_bytes, filename="promotion.png")
+
+                        # Send promotion message
+                        await promo_channel.send(
+                            f"{ctx.author.mention} has been promoted to {new_rank}!",
+                            file=promo_file
+                        )
+                except Exception as e:
+                    logger.error(f"Error sending promotion announcement: {e}")
+
+        except Exception as e:
+            # Fallback to text embed if image fails
+            embed = discord.Embed(
+                title="DAILY SUPPLY DROP",
+                description=f"**+{format_number(xp)} XP** received!",
+                color=0x00ff00
+            )
+            embed.add_field(
+                name="UPDATED STATS",
+                value=f"```\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
+                inline=False
+            )
+            if rank_changed:
+                embed.add_field(name="PROMOTION!", value=f"New rank: **{new_rank}**", inline=False)
+                if role_granted:
+                    embed.add_field(name="ROLE ASSIGNED", value=f"Discord role **{role_granted}** granted!", inline=False)
+
+            embed.set_footer(text=f"Error generating image: {e}")
+            await ctx.send(embed=embed)
+
+        # Schedule a background save; avoid forcing Neon sync here
+        self.bot.member_data.schedule_save()
+        asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
 
 async def setup(bot):

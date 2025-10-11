@@ -72,34 +72,31 @@ def generate_profile_new(
     voice_hours: int
 ) -> Image.Image:
     """
-    New profile card design - Basic version
+    New profile card design - Clean card layout
 
     Layout:
-    [PFP]  NAME
-    [PFP]  ROLE
-    [PFP]  BIO
-
-    STATS (table cells)
+    [PFP]  Discord Username  |  XP                 xxx
+    [PFP]  Profile bio                |  MESSAGES xxx
+    [PFP]  Profile bio                |  VOICE          xxx
     """
-    width = 750
-    height = 480
+    width = 800
+    height = 340
 
     # Create base
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
 
-    # Load fonts
-    font_name = load_font(26, "title")
-    font_subtitle = load_font(18, "text")
-    font_body = load_font(16, "text")
-    font_stat_label = load_font(15, "text")
-    font_stat_value = load_font(18, "text")
-    font_footer = load_font(11, "text")
+    # Load fonts - Use Helvetica for username, numbers font for stats
+    font_username = load_font(36, "text")  # Large Helvetica for Discord name
+    font_body = load_font(15, "text")  # Helvetica for bio
+    font_stat_label = load_font(14, "text")  # Helvetica for labels
+    font_stat_numbers = load_font(24, "numbers")  # Numbers font for values
+    font_footer = load_font(10, "text")
 
-    # === LEFT SIDE: AVATAR ===
-    avatar_size = 140
-    avatar_x = 40
-    avatar_y = 40
+    # === PROFILE PICTURE (LEFT SIDE) ===
+    avatar_size = 180
+    avatar_x = 35
+    avatar_y = 50
 
     if avatar_url:
         avatar = create_profile_avatar(avatar_url, size=(avatar_size, avatar_size))
@@ -109,33 +106,26 @@ def generate_profile_new(
         draw.rectangle([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size],
                       outline=CODEC_GREEN_TEXT, width=2)
 
-    # === RIGHT SIDE: NAME, ROLE, BIO ===
-    info_x = avatar_x + avatar_size + 30
-    info_y = avatar_y
-    info_width = width - info_x - 40
+    # === CENTER: USERNAME & BIO ===
+    center_x = avatar_x + avatar_size + 30
+    center_y = avatar_y + 10
+    center_width = 300
 
-    # Name
+    # Discord Username (BIG TEXT)
     username_clean = sanitize_username(username)
-    safe_draw_text(draw, (info_x, info_y),
-                  username_clean.upper(),
-                  primary_font=font_name, fill=CODEC_BORDER_BRIGHT)
+    safe_draw_text(draw, (center_x, center_y),
+                  username_clean,
+                  primary_font=font_username, fill=CODEC_BORDER_BRIGHT)
 
-    # Role
-    role_y = info_y + 35
-    role_text = f"► {role_name.upper()}"
-    safe_draw_text(draw, (info_x, role_y),
-                  role_text,
-                  primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
+    # Bio (2 rows for long bios)
+    bio_y = center_y + 60
+    bio_display = bio_text[:150] if bio_text else "No bio set."
 
-    # Bio (wrapped, max 3 lines)
-    bio_y = role_y + 30
-    bio_display = bio_text[:120] if bio_text else "No bio set."
-
-    # Wrap bio text
+    # Wrap bio text - max 2 lines
     words = bio_display.split()
     lines = []
     current_line = ""
-    max_chars_per_line = 45
+    max_chars_per_line = 40
 
     for word in words:
         if len(current_line + word) <= max_chars_per_line:
@@ -144,51 +134,63 @@ def generate_profile_new(
             if current_line:
                 lines.append(current_line.strip())
             current_line = word + " "
-            if len(lines) >= 3:  # Max 3 lines
+            if len(lines) >= 2:  # Max 2 lines for bio
                 break
 
-    if current_line and len(lines) < 3:
+    if current_line and len(lines) < 2:
         lines.append(current_line.strip())
 
     for i, line in enumerate(lines):
-        safe_draw_text(draw, (info_x, bio_y + i * 22),
-                      f'"{line}"' if i == 0 else line,
+        safe_draw_text(draw, (center_x, bio_y + i * 24),
+                      line,
                       primary_font=font_body, fill=CODEC_GREEN_TEXT)
 
-    # === DIVIDER ===
-    divider_y = avatar_y + avatar_size + 25
-    draw_codec_divider(draw, 40, divider_y, width - 80)
+    # === RIGHT: STATS COLUMN ===
+    # Draw vertical divider
+    divider_x = center_x + center_width + 20
+    draw.line([(divider_x, avatar_y), (divider_x, avatar_y + avatar_size)],
+             fill=CODEC_GREEN_TEXT, width=2)
 
-    # === STATS SECTION ===
-    stats_header_y = divider_y + 20
-    safe_draw_text(draw, (40, stats_header_y),
-                  "STATS",
-                  primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
+    stats_x = divider_x + 25
+    stats_start_y = avatar_y + 15
 
-    # Stats table
-    stats_y = stats_header_y + 35
-    cell_width = (width - 120) // 2  # Two columns
-    cell_height = 50
-    cell_spacing = 10
+    # XP Stat
+    xp_y = stats_start_y
+    safe_draw_text(draw, (stats_x, xp_y),
+                  "XP",
+                  primary_font=font_stat_label, fill=CODEC_GREEN_TEXT)
+    safe_draw_text(draw, (stats_x + 130, xp_y - 5),
+                  str(xp),
+                  primary_font=font_stat_numbers, fill=CODEC_GREEN_BRIGHT)
 
-    stats_data = [
-        ("XP", f"{xp:,}"),
-        ("MESSAGES", f"{messages:,}"),
-        ("VOICE TIME", f"{voice_hours}H")
-    ]
+    # MESSAGES Stat
+    messages_y = xp_y + 60
+    safe_draw_text(draw, (stats_x, messages_y),
+                  "MESSAGES",
+                  primary_font=font_stat_label, fill=CODEC_GREEN_TEXT)
+    safe_draw_text(draw, (stats_x + 130, messages_y - 5),
+                  str(messages),
+                  primary_font=font_stat_numbers, fill=CODEC_GREEN_BRIGHT)
 
-    # Draw 2x2 grid
-    for i, (label, value) in enumerate(stats_data):
-        col = i % 2
-        row = i // 2
-        cell_x = 40 + col * (cell_width + cell_spacing)
-        cell_y = stats_y + row * (cell_height + cell_spacing)
+    # VOICE Stat
+    voice_y = messages_y + 60
+    safe_draw_text(draw, (stats_x, voice_y),
+                  "VOICE",
+                  primary_font=font_stat_label, fill=CODEC_GREEN_TEXT)
+    voice_display = f"{voice_hours}H"
+    safe_draw_text(draw, (stats_x + 130, voice_y - 5),
+                  voice_display,
+                  primary_font=font_stat_numbers, fill=CODEC_GREEN_BRIGHT)
 
-        draw_stat_cell(draw, cell_x, cell_y, cell_width, cell_height,
-                      label, value, font_stat_label, font_stat_value)
+    # === BORDER FRAME ===
+    # Draw clean border around the card
+    border_margin = 20
+    draw.rectangle([border_margin, border_margin,
+                   width - border_margin, height - border_margin],
+                  outline=CODEC_GREEN_TEXT, width=3)
 
     # === FOOTER ===
-    footer_y = height - 25
+    footer_y = height - 30
     footer_text = "Outer Heaven: Exciled Units"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
@@ -201,8 +203,7 @@ def generate_profile_new(
                   footer_text,
                   primary_font=font_footer, fill=CODEC_GREEN_DIM)
 
-    # === APPLY EFFECTS ===
-    draw_codec_frame(draw, width, height)
+    # === APPLY CODEC EFFECTS ===
     base = add_heavy_scanlines(base, spacing=3)
     base = add_static_noise(base, intensity=12)
     base = add_phosphor_glow(base)

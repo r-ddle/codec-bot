@@ -31,7 +31,6 @@ RATE_LIMITS = {
     'status': 5,           # Status check
     'rank': 10,            # Rank card (image generation)
     'leaderboard': 15,     # Leaderboard (image generation)
-    'daily': 60,           # Daily bonus claim check
 
     # Profile commands (image-heavy, higher cooldowns)
     'profile': 15,         # Profile cards

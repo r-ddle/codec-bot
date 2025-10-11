@@ -476,19 +476,28 @@ Lieutenant: 750 XP
     @commands.has_permissions(administrator=True)
     async def test_daily(self, ctx, member: Optional[discord.Member] = None):
         """Reset daily bonus cooldown for testing (Commanders only)."""
+        from datetime import datetime, timedelta, timezone
+        from utils.rate_limiter import rate_limiter
+
         target = member or ctx.author
 
         try:
             member_data = self.bot.member_data.get_member_data(target.id, ctx.guild.id)
 
-            # Reset last daily timestamp
-            member_data['last_daily'] = None
+            # Reset last daily to yesterday to preserve streak
+            # This allows immediate claim while maintaining streak continuity
+            yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
+            member_data['last_daily'] = yesterday
+
+            # Also reset the rate limiter for the daily command
+            rate_limiter.reset_cooldown(target.id, 'daily')
 
             # Save locally and schedule a background Neon sync (non-blocking)
             self.bot.member_data.schedule_save()
             asyncio.create_task(self.bot.member_data.save_data_async(force=False))
 
             current_streak = member_data.get('daily_streak', 0)
+            next_streak = current_streak + 1  # Will be this after claiming
 
             embed = discord.Embed(
                 title="✅ DAILY COOLDOWN RESET",
@@ -496,8 +505,9 @@ Lieutenant: 750 XP
                 color=0x00ff00
             )
             embed.add_field(name="Status", value="Can now claim !daily immediately", inline=False)
-            embed.add_field(name="Current Streak", value=f"{current_streak} days", inline=False)
-            embed.set_footer(text="Testing command - Administrators only")
+            embed.add_field(name="Current Streak", value=f"{current_streak} days", inline=True)
+            embed.add_field(name="Next Claim Streak", value=f"{next_streak} days", inline=True)
+            embed.set_footer(text="Testing command - Administrators only | Streak preserved")
             await ctx.send(embed=embed)
 
         except Exception as e:

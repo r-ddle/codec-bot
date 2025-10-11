@@ -77,6 +77,7 @@ class NeonDatabase:
                     tactical_words_used INTEGER DEFAULT 0,
                     total_tactical_words INTEGER DEFAULT 0,
                     last_daily DATE,
+                    daily_streak INTEGER DEFAULT 0,
                     last_message_time DOUBLE PRECISION DEFAULT 0,
                     last_tactical_bonus DOUBLE PRECISION DEFAULT 0,
                     verified BOOLEAN DEFAULT FALSE,
@@ -85,6 +86,15 @@ class NeonDatabase:
                     PRIMARY KEY (member_id, guild_id)
                 )
             ''')
+
+            # Add daily_streak column if it doesn't exist (migration)
+            try:
+                await conn.execute('''
+                    ALTER TABLE member_data
+                    ADD COLUMN IF NOT EXISTS daily_streak INTEGER DEFAULT 0
+                ''')
+            except Exception as e:
+                logger.warning(f"Could not add daily_streak column (may already exist): {e}")
 
             # Create indexes for better query performance
             await conn.execute('''
@@ -127,9 +137,9 @@ class NeonDatabase:
                         member_id, guild_id, gmp, xp, rank, rank_icon,
                         messages_sent, voice_minutes, reactions_given, reactions_received,
                         tactical_words_used, total_tactical_words,
-                        last_daily, last_message_time, last_tactical_bonus, verified,
+                        last_daily, daily_streak, last_message_time, last_tactical_bonus, verified,
                         updated_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
                     ON CONFLICT (member_id, guild_id)
                     DO UPDATE SET
                         gmp = EXCLUDED.gmp,
@@ -143,6 +153,7 @@ class NeonDatabase:
                         tactical_words_used = EXCLUDED.tactical_words_used,
                         total_tactical_words = EXCLUDED.total_tactical_words,
                         last_daily = EXCLUDED.last_daily,
+                        daily_streak = EXCLUDED.daily_streak,
                         last_message_time = EXCLUDED.last_message_time,
                         last_tactical_bonus = EXCLUDED.last_tactical_bonus,
                         verified = EXCLUDED.verified,
@@ -160,6 +171,7 @@ class NeonDatabase:
                     data.get('tactical_words_used', 0),
                     data.get('total_tactical_words', 0),
                     self._parse_date(data.get('last_daily')),
+                    data.get('daily_streak', 0),
                     data.get('last_message_time', 0),
                     data.get('last_tactical_bonus', 0),
                     data.get('verified', False)
@@ -276,6 +288,7 @@ class NeonDatabase:
                         'tactical_words_used': row['tactical_words_used'],
                         'total_tactical_words': row['total_tactical_words'],
                         'last_daily': row['last_daily'].isoformat() if row['last_daily'] else None,
+                        'daily_streak': row.get('daily_streak', 0),
                         'last_message_time': row['last_message_time'],
                         'last_tactical_bonus': row['last_tactical_bonus'],
                         'verified': row['verified']
