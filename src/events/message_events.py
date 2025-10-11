@@ -43,17 +43,12 @@ class MessageEvents(commands.Cog):
         rank_changed = False
         new_rank = old_rank
 
-        # Get XP multiplier if shop system is enabled (Phase 3)
-        xp_multiplier = 1.0
-        if hasattr(self.bot, 'shop_system'):
-            xp_multiplier = await self.bot.shop_system.get_active_multiplier(member_id, guild_id)
-
         # Message rewards only if cooldown has passed
         if current_time - last_msg_time > MESSAGE_COOLDOWN:
             member_data["last_message_time"] = current_time
 
-            # Give base message rewards (apply XP multiplier)
-            message_xp = int(ACTIVITY_REWARDS["message"]["xp"] * xp_multiplier)
+            # Give base message rewards
+            message_xp = ACTIVITY_REWARDS["message"]["xp"]
             message_rank_changed, message_new_rank = self.bot.member_data.add_xp(
                 member_id, guild_id,
                 message_xp,

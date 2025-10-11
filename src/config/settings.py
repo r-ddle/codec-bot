@@ -44,7 +44,7 @@ MIGRATION_VERSION: int = 1
 # Feature Flags - Enable/disable features without code changes
 # IMPORTANT: Keep these False until features are fully tested
 FEATURE_FLAGS = {
-    'ENABLE_SHOP': True,  # GMP shop system - Phase 3/4
+    'ENABLE_SHOP': False,  # GMP shop system - Removed
     'ENABLE_MISSIONS': True,  # Daily/weekly missions - Phase 5
     'ENABLE_SLASH_COMMANDS': True,  # Slash commands (already partially implemented)
     'ENABLE_ACHIEVEMENTS': True,  # Achievement system - Phase 6

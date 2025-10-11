@@ -11,6 +11,8 @@ This bot provides a complete progression and engagement system for server member
 ### XP-Based Ranking System
 The bot tracks member activity and awards XP for engagement. When members reach specific XP thresholds, they are automatically promoted to higher ranks and receive corresponding Discord roles. The system supports legacy progression for existing members while implementing balanced requirements for new members.
 
+**Monthly XP Reset**: XP is automatically reset on the 1st of each month to encourage continuous competition. Ranks and multipliers are preserved, rewarding dedicated members with permanent advantages.
+
 ### Activity Tracking
 Members earn XP through multiple channels:
 - Sending messages in text channels (with cooldown to prevent spam)

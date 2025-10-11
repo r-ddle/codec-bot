@@ -34,7 +34,7 @@ class ServerEventManager:
         return {
             "active": False,
             "event_title": "Weekly Community Challenge",
-            "message_goal": 15000,
+            "message_goal": 500,
             "start_date": None,
             "end_date": None,
             "total_messages": 0,
@@ -96,7 +96,7 @@ class ServerEventManager:
         self.data = {
             "active": True,
             "event_title": title or "Weekly Community Challenge",
-            "message_goal": message_goal or 15000,
+            "message_goal": message_goal or 500,
             "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
             "total_messages": 0,
@@ -249,7 +249,7 @@ class ServerEventManager:
                 "username": data["username"],
                 "messages": data["message_count"],
                 "gmp": 500,
-                "xp": 700
+                "xp": 100
             })
 
         # Top 3 get bonus
@@ -260,7 +260,7 @@ class ServerEventManager:
                     "username": data["username"],
                     "messages": data["message_count"],
                     "bonus_gmp": 1500,
-                    "bonus_xp": 1500
+                    "bonus_xp": 500
                 })
 
         results = {

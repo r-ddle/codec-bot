@@ -82,19 +82,9 @@ MGS_RANKS_LEGACY: List[Dict[str, Any]] = [
 # Cutoff date for legacy progression (October 8, 2025)
 LEGACY_USER_CUTOFF = "2025-10-08"
 
-# Activity rewards
-ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
-    "message": {"xp": 2, "gmp": 1},
-    "voice_minute": {"xp": 2, "gmp": 1},
-    "reaction": {"xp": 1, "gmp": 0},
-    "reaction_received": {"xp": 3, "gmp": 1},
-    "daily_bonus": {"xp": 100, "gmp": 50}
-}
-
 # Default member data structure (single source of truth)
 DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "xp": 0,
-    "gmp": 0,
     "rank": "Rookie",
     "rank_icon": "",
     "messages_sent": 0,
@@ -122,6 +112,15 @@ RANK_XP_MULTIPLIERS = {
     "Major": 1.6,
     "Colonel": 1.7,
     "FOXHOUND": 2.0
+}
+
+# Activity rewards
+ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
+    "message": {"xp": 2},
+    "voice_minute": {"xp": 2},
+    "reaction": {"xp": 1},
+    "reaction_received": {"xp": 3},
+    "daily_bonus": {"xp": 100}
 }
 
 # Contact administrators for support

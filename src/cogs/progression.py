@@ -309,8 +309,8 @@ class Progression(commands.Cog):
             minutes = (time_left.seconds // 60) % 60
 
             embed = discord.Embed(
-                title=" SUPPLY DROP UNAVAILABLE",
-                description=f"Already claimed today.\nNext drop in **{hours:02d}:{minutes:02d}**",
+                title="Supply Drop Unavailable",
+                description=f"  Already claimed today. Come back later solidier \nNext drop in **{hours:02d} hours and {minutes:02d} minutes**",
                 color=0xff0000
             )
             await ctx.send(embed=embed)

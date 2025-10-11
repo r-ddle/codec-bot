@@ -11,8 +11,8 @@ Outer Heaven: Exiled Soldiers - Exclusive Bot
 # ═══════════════════════════════════════════════════════════════════
 
 # Event System
-EVENT_ROLE_ID = 1425552378798805132
-EVENT_CHANNEL_ID = 1322065560707530854
+EVENT_ROLE_ID = 1426451950207242280
+EVENT_CHANNEL_ID = 1423506534658474181
 
 # Word-Up Game Channel
 WORD_UP_CHANNEL_ID = 1423506535199281254
@@ -84,17 +84,17 @@ AUTO_SAVE_INTERVAL = 5          # Auto-save pending changes
 # ═══════════════════════════════════════════════════════════════════
 
 # Default event settings
-DEFAULT_EVENT_GOAL = 15000      # Default message goal
+DEFAULT_EVENT_GOAL = 500      # Default message goal (15-1000 range)
 EVENT_DURATION_DAYS = 7         # Week-long events
 EVENT_PROGRESS_UPDATE_INTERVAL = 48  # Hours between progress updates
 
 # Event rewards (XP only)
 EVENT_PARTICIPATION_REWARD = {
-    "xp": 700
+    "xp": 50
 }
 
 EVENT_TOP_3_BONUS = {
-    "xp": 1500
+    "xp": 500
 }
 
 # ═══════════════════════════════════════════════════════════════════

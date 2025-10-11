@@ -88,17 +88,17 @@ class ServerEvent(commands.Cog):
             ping_text = f"{role.mention}" if role else "@botevent"
 
             await channel.send(
-                f"**THIS WEEK'S SERVER EVENT HAS STARTED!** {ping_text}\n\n"
+                f"**This Week's Server Event Has Started!** {ping_text}\n\n"
                 f"**Goal:** {event_info['goal']:,} messages\n"
-                f"**Rewards:** All participants get +700 XP\n"
-                f"**Bonus:** Top 3 get +1500 XP",
+                f"**Rewards:** All participants get +100 XP\n"
+                f"**Bonus:** Top 3 get +500 XP",
                 file=discord.File(buffer, 'event_start.png')
             )
 
             # Send reminder message
             await channel.send("-# If you want to get notified of future server events, type !remindme")
 
-            logger.info("✅ Event start announced")
+            logger.info("Event start announced")
 
         except Exception as e:
             logger.error(f"Error announcing event start: {e}")
@@ -138,7 +138,7 @@ class ServerEvent(commands.Cog):
                     top_contributors_text += f"{i}. {username} - {msg_count:,} messages\n"
 
             await channel.send(
-                f"📊 **EVENT PROGRESS UPDATE**{top_contributors_text}",
+                f"**Event Progress Update**{top_contributors_text}",
                 file=discord.File(buffer, 'event_progress.png')
             )
 
@@ -146,7 +146,7 @@ class ServerEvent(commands.Cog):
             await channel.send("-# If you want to get notified of future server events, type !remindme")
 
             await self.event_manager.mark_progress_update_sent()
-            logger.info("✅ Event progress update sent")
+            logger.info("Event progress update sent")
 
         except Exception as e:
             logger.error(f"Error sending progress update: {e}")
@@ -192,7 +192,7 @@ class ServerEvent(commands.Cog):
             # Distribute rewards
             await self._distribute_rewards(results["rewards"], channel.guild)
 
-            logger.info("✅ Event ended and rewards distributed")
+            logger.info("Event ended and rewards distributed")
 
         except Exception as e:
             logger.error(f"Error ending event: {e}")
@@ -222,7 +222,7 @@ class ServerEvent(commands.Cog):
             self.bot.member_data.schedule_save()
             await self.bot.member_data.save_data_async()
 
-            logger.info(f"✅ Distributed rewards to {len(rewards['all_participants'])} participants")
+            logger.info(f"Distributed rewards to {len(rewards['all_participants'])} participants")
 
         except Exception as e:
             logger.error(f"Error distributing rewards: {e}")
@@ -246,13 +246,12 @@ class ServerEvent(commands.Cog):
             )
 
     @commands.command(name='eventstatus')
-    @enforce_rate_limit('gmp')
     async def event_status(self, ctx):
         """Check current event status"""
         info = self.event_manager.get_event_info()
 
         if not info["active"]:
-            await ctx.send("❌ No active server event. Admins can start one with `!eventstart`")
+            await ctx.send("No active server event. Admins can start one with `!eventstart`")
             return
 
         percentage = (info["current"] / info["goal"] * 100) if info["goal"] > 0 else 0
@@ -316,7 +315,7 @@ class ServerEvent(commands.Cog):
         Example: !eventstart 20000 "Holiday Special Event"
         """
         if self.event_manager.is_event_active():
-            await ctx.send("⚠️ An event is already active! Use `!eventend` first.")
+            await ctx.send("An event is already active! Use `!eventend` first.")
             return
 
         try:
@@ -329,23 +328,23 @@ class ServerEvent(commands.Cog):
             await self._announce_event_start(event_info)
 
         except Exception as e:
-            await ctx.send(f"❌ Error starting event: {e}")
+            await ctx.send(f"Error starting event: {e}")
 
     @commands.command(name='eventend')
     @commands.has_permissions(administrator=True)
     async def end_event_command(self, ctx):
         """End the current event and distribute rewards (Admin only)"""
         if not self.event_manager.is_event_active():
-            await ctx.send("❌ No active event to end.")
+            await ctx.send("No active event to end.")
             return
 
         try:
-            await ctx.send("⏳ Ending event and distributing rewards...")
+            await ctx.send("Ending event and distributing rewards...")
             await self._end_event_and_distribute_rewards()
-            await ctx.send("✅ Event ended successfully!")
+            await ctx.send("Event ended successfully!")
 
         except Exception as e:
-            await ctx.send(f"❌ Error ending event: {e}")
+            await ctx.send(f"Error ending event: {e}")
 
     @commands.command(name='eventrestart')
     @commands.has_permissions(administrator=True)
@@ -367,20 +366,20 @@ class ServerEvent(commands.Cog):
                 message_goal=info["goal"]
             )
 
-            await ctx.send(f"✅ Event restarted! Progress reset to 0.")
+            await ctx.send(f"Event restarted! Progress reset to 0.")
 
             if was_active:
                 await self._announce_event_start(event_info)
 
         except Exception as e:
-            await ctx.send(f"❌ Error restarting event: {e}")
+            await ctx.send(f"Error restarting event: {e}")
 
     @commands.command(name='eventprogress')
     @commands.has_permissions(administrator=True)
     async def force_progress_update(self, ctx):
         """Force send a progress update image (Admin only)"""
         if not self.event_manager.is_event_active():
-            await ctx.send("❌ No active event.")
+            await ctx.send("No active event.")
             return
 
         try:
@@ -389,20 +388,20 @@ class ServerEvent(commands.Cog):
             # await ctx.send("✅ Progress update sent!")
 
         except Exception as e:
-            await ctx.send(f"❌ Error: {e}")
+            await ctx.send(f"Error: {e}")
 
     @commands.command(name='eventinfo')
     @enforce_rate_limit('leaderboard')
     async def event_info(self, ctx):
         """Public command: show current event progress image + leaderboard text + reminder"""
         if not self.event_manager.is_event_active():
-            await ctx.send("❌ No active event.")
+            await ctx.send("No active event.")
             return
 
         try:
             progress_data = self.event_manager.get_progress_data()
             if not progress_data:
-                await ctx.send("❌ No event data available.")
+                await ctx.send("No event data available.")
                 return
 
             # Generate the start banner (same banner used at event start)
@@ -448,7 +447,7 @@ class ServerEvent(commands.Cog):
 
         except Exception as e:
             logger.error(f"Error in eventinfo command: {e}")
-            await ctx.send(f"❌ Error: {e}")
+            await ctx.send(f"Error: {e}")
 
 
 async def setup(bot):
