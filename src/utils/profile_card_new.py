@@ -1,211 +1,329 @@
-"""
-New MGS Codec Profile Card Designs
-Three variants: Basic, Enhanced BG, Nitro Banner
-"""
-import asyncio
-from PIL import Image, ImageDraw, ImageFilter
-from io import BytesIO
-import aiohttp
-from typing import Optional, Tuple
+# profile_card_new.py
+# Enhanced MGS Codec-style profile card generator
 
-# Import shared codec utilities
-from utils.image_gen import (
-    load_font,
-    safe_draw_text,
-    add_heavy_scanlines,
-    add_static_noise,
-    add_phosphor_glow,
-    draw_codec_frame,
-    draw_codec_divider,
-    sanitize_username,
-    CODEC_GREEN_BRIGHT,
-    CODEC_GREEN_TEXT,
-    CODEC_GREEN_DIM,
-    CODEC_BG_DARK,
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+import io
+import requests
+import random
+import unicodedata
+from datetime import datetime
+from typing import Optional, List
+
+# === IMPORT SHARED FUNCTIONS FROM image_gen.py ===
+from .image_gen import (
+    sanitize_username, load_font, safe_draw_text,
+    add_heavy_scanlines, add_static_noise, add_phosphor_glow,
+    draw_codec_frame, draw_codec_divider,
+    CODEC_BG_DARK, CODEC_BG_MEDIUM, CODEC_GREEN_PRIMARY,
+    CODEC_GREEN_DIM, CODEC_GREEN_TEXT, CODEC_GREEN_BRIGHT,
     CODEC_BORDER_BRIGHT
 )
-from utils.profile_card_gen import create_profile_avatar
+from .profile_card_gen import create_profile_avatar, wrap_text
 
+def draw_progress_bar(draw, x, y, width, height, percentage, color_fill, color_bg):
+    """Draws a progress bar with percentage fill."""
+    # Background
+    draw.rectangle([x, y, x + width, y + height], fill=color_bg, outline=CODEC_GREEN_PRIMARY)
 
-def draw_stat_cell(draw, x, y, width, height, label, value, font_label, font_value):
-    """Draw a stat cell with border, label on left, value on right"""
-    # Draw cell border
-    draw.rectangle([x, y, x + width, y + height], outline=CODEC_GREEN_TEXT, width=2)
+    # Fill
+    fill_width = int(width * (percentage / 100))
+    if fill_width > 0:
+        draw.rectangle([x, y, x + fill_width, y + height], fill=color_fill)
 
-    # Draw label on left
-    label_x = x + 15
-    label_y = y + (height - 20) // 2
-    safe_draw_text(draw, (label_x, label_y), label, primary_font=font_label, fill=CODEC_GREEN_TEXT)
+    # Segments (for that tech look)
+    segment_width = width // 10
+    for i in range(1, 10):
+        seg_x = x + (i * segment_width)
+        draw.line([(seg_x, y), (seg_x, y + height)], fill=CODEC_BG_DARK, width=1)
 
-    # Draw value right-aligned
-    try:
-        val_bbox = draw.textbbox((0, 0), value, font=font_value)
-        val_width = val_bbox[2] - val_bbox[0]
-    except:
-        val_width = len(value) * 10
+def draw_section_label(draw, x, y, text, font, with_arrow=True):
+    """Draws a section label with optional arrow indicator."""
+    text_x = x
 
-    value_x = x + width - val_width - 15
-    value_y = y + (height - 20) // 2
-    safe_draw_text(draw, (value_x, value_y), value, primary_font=font_value, fill=CODEC_GREEN_BRIGHT)
+    safe_draw_text(draw, (text_x, y), text, primary_font=font, fill=CODEC_GREEN_BRIGHT)
+    return text_x
 
-
-async def download_banner(banner_url: str) -> Optional[Image.Image]:
-    """Download and return user's banner image"""
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(banner_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                if response.status == 200:
-                    data = await response.read()
-                    return Image.open(BytesIO(data)).convert("RGB")
-    except Exception as e:
-        print(f"Error downloading banner: {e}")
-    return None
-
+def calculate_stat_percentage(value, max_value):
+    """Calculates percentage for progress bar, capped at 100%."""
+    if max_value == 0:
+        return 0
+    return min(100, int((value / max_value) * 100))
 
 def generate_profile_new(
     username: str,
     role_name: str,
     avatar_url: Optional[str],
-    bio_text: str,
+    bio_text: Optional[str],
     xp: int,
     messages: int,
     voice_hours: int
-) -> Image.Image:
+):
     """
-    New profile card design - Clean card layout
+    Generates an enhanced MGS Codec-style profile card with improved UI.
 
-    Layout:
-    [PFP]  Discord Username  |  XP                 xxx
-    [PFP]  Profile bio                |  MESSAGES xxx
-    [PFP]  Profile bio                |  VOICE          xxx
+    Args:
+        username: Discord username
+        role_name: User's role name
+        avatar_url: URL to user's avatar
+        member_since: Member since date (e.g., "SEPT 2025")
+        bio_text: User bio (optional)
+        xp: XP amount
+        messages: Message count
+        voice_hours: Voice time in hours
+
+    Returns:
+        PIL Image object
     """
-    width = 800
-    height = 340
+    width = 750
+    height = 650
 
     # Create base
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
 
-    # Load fonts - Use Helvetica for username, numbers font for stats
-    font_username = load_font(36, "text")  # Large Helvetica for Discord name
-    font_body = load_font(15, "text")  # Helvetica for bio
-    font_stat_label = load_font(14, "text")  # Helvetica for labels
-    font_stat_numbers = load_font(24, "numbers")  # Numbers font for values
-    font_footer = load_font(10, "text")
+    # Load fonts
+    font_title = load_font(30, "text")
+    font_subtitle = load_font(16, "text")
+    font_body = load_font(14, "text")
+    font_stats_label = load_font(12, "text")
+    font_stats_value = load_font(20, "numbers")
+    font_small = load_font(11, "text")
+    font_tiny = load_font(10, "text")
 
-    # === PROFILE PICTURE (LEFT SIDE) ===
-    avatar_size = 180
-    avatar_x = 35
-    avatar_y = 50
+    # === HEADER: FREQUENCY & TIMESTAMP ===
+    header_y = 25
+    freq_text = "FREQ: 140.85"
+    safe_draw_text(draw, (25, header_y), freq_text,
+                  primary_font=font_small, fill=CODEC_GREEN_DIM)
 
-    if avatar_url:
-        avatar = create_profile_avatar(avatar_url, size=(avatar_size, avatar_size))
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    date_text = f"{timestamp} | {datetime.now().strftime('%d.%m.%Y')}"
+    try:
+        date_bbox = draw.textbbox((0, 0), date_text, font=font_small)
+        date_width = date_bbox[2] - date_bbox[0]
+    except:
+        date_width = len(date_text) * 6
+    safe_draw_text(draw, (width - date_width - 25, header_y), date_text,
+                  primary_font=font_small, fill=CODEC_GREEN_DIM)
+
+    # === AVATAR SECTION ===
+    avatar_size = 140
+    avatar = create_profile_avatar(avatar_url, size=(avatar_size, avatar_size)) if avatar_url else None
+
+    if avatar:
+        avatar_x = (width - avatar_size) // 2
+        avatar_y = 45
         base.paste(avatar, (avatar_x, avatar_y))
-    else:
-        # Draw placeholder
-        draw.rectangle([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size],
-                      outline=CODEC_GREEN_TEXT, width=2)
 
-    # === CENTER: USERNAME & BIO ===
-    center_x = avatar_x + avatar_size + 30
-    center_y = avatar_y + 10
-    center_width = 300
+        # Enhanced border with corner accents
+        border_pad = 3
+        draw.rectangle([avatar_x - border_pad, avatar_y - border_pad,
+                       avatar_x + avatar_size + border_pad, avatar_y + avatar_size + border_pad],
+                      outline=CODEC_GREEN_PRIMARY, width=2)
 
-    # Discord Username (BIG TEXT)
+    # === USERNAME & ROLE ===
     username_clean = sanitize_username(username)
-    safe_draw_text(draw, (center_x, center_y),
-                  username_clean,
-                  primary_font=font_username, fill=CODEC_BORDER_BRIGHT)
+    username_y = 200
 
-    # Bio (2 rows for long bios)
-    bio_y = center_y + 60
-    bio_display = bio_text[:150] if bio_text else "No bio set."
+    # Center username with underline effect
+    try:
+        username_bbox = draw.textbbox((0, 0), username_clean.upper(), font=font_title)
+        username_width = username_bbox[2] - username_bbox[0]
+    except:
+        username_width = len(username_clean) * 16
 
-    # Wrap bio text - max 2 lines
-    words = bio_display.split()
-    lines = []
-    current_line = ""
-    max_chars_per_line = 40
+    username_x = (width - username_width) // 2
+    safe_draw_text(draw, (username_x, username_y),
+                  username_clean.upper(),
+                  primary_font=font_title, fill=CODEC_BORDER_BRIGHT)
 
-    for word in words:
-        if len(current_line + word) <= max_chars_per_line:
-            current_line += word + " "
-        else:
-            if current_line:
-                lines.append(current_line.strip())
-            current_line = word + " "
-            if len(lines) >= 2:  # Max 2 lines for bio
-                break
+    # Role badge
+    role_y = username_y + 42
+    role_text = role_name.upper()
+    try:
+        role_bbox = draw.textbbox((0, 0), role_text, font=font_subtitle)
+        role_width = role_bbox[2] - role_bbox[0]
+    except:
+        role_width = len(role_text) * 9
 
-    if current_line and len(lines) < 2:
-        lines.append(current_line.strip())
+    role_x = (width - role_width) // 2
 
-    for i, line in enumerate(lines):
-        safe_draw_text(draw, (center_x, bio_y + i * 24),
-                      line,
+    # Role background
+    role_bg_pad = 8
+    draw.rectangle([role_x - role_bg_pad, role_y - 3,
+                   role_x + role_width + role_bg_pad, role_y + 18],
+                  fill=CODEC_BG_MEDIUM, outline=CODEC_GREEN_PRIMARY)
+
+    safe_draw_text(draw, (role_x, role_y),
+                  role_text,
+                  primary_font=font_subtitle, fill=CODEC_GREEN_TEXT)
+
+    current_y = role_y + 40
+
+    # === DIVIDER ===
+    draw_codec_divider(draw, 40, current_y, width - 80)
+    current_y += 20
+
+    # === BIO SECTION (COMPACT) ===
+    bio_x = 50
+    draw_section_label(draw, bio_x, current_y, "OPERATIVE BIO", font_subtitle)
+    current_y += 22
+
+    bio_display = bio_text[:200] if bio_text else "No profile information available."
+    bio_display_x = bio_x + 10
+    bio_lines = wrap_text(bio_display, font_body, width - bio_display_x - 50, draw)
+
+    for line in bio_lines[:2]:  # Max 2 lines
+        safe_draw_text(draw, (bio_x + 20, current_y), line,
                       primary_font=font_body, fill=CODEC_GREEN_TEXT)
+        current_y += 18
 
-    # === RIGHT: STATS COLUMN ===
-    # Draw vertical divider
-    divider_x = center_x + center_width + 20
-    draw.line([(divider_x, avatar_y), (divider_x, avatar_y + avatar_size)],
-             fill=CODEC_GREEN_TEXT, width=2)
+    current_y += 12
 
-    stats_x = divider_x + 25
-    stats_start_y = avatar_y + 15
+    # === DIVIDER ===
+    draw_codec_divider(draw, 40, current_y, width - 80)
+    current_y += 20
 
-    # XP Stat
-    xp_y = stats_start_y
-    safe_draw_text(draw, (stats_x, xp_y),
-                  "XP",
-                  primary_font=font_stat_label, fill=CODEC_GREEN_TEXT)
-    safe_draw_text(draw, (stats_x + 130, xp_y - 5),
-                  str(xp),
-                  primary_font=font_stat_numbers, fill=CODEC_GREEN_BRIGHT)
+    # === STATS SECTION (HORIZONTAL GRID) ===
+    draw_section_label(draw, 50, current_y, "TACTICAL STATISTICS", font_subtitle)
+    current_y += 28
 
-    # MESSAGES Stat
-    messages_y = xp_y + 60
-    safe_draw_text(draw, (stats_x, messages_y),
-                  "MESSAGES",
-                  primary_font=font_stat_label, fill=CODEC_GREEN_TEXT)
-    safe_draw_text(draw, (stats_x + 130, messages_y - 5),
-                  str(messages),
-                  primary_font=font_stat_numbers, fill=CODEC_GREEN_BRIGHT)
+    # Calculate stat percentages for visual feedback
+    xp_max = 20000
+    msg_max = 5000
+    voice_max = 200
 
-    # VOICE Stat
-    voice_y = messages_y + 60
-    safe_draw_text(draw, (stats_x, voice_y),
-                  "VOICE",
-                  primary_font=font_stat_label, fill=CODEC_GREEN_TEXT)
-    voice_display = f"{voice_hours}H"
-    safe_draw_text(draw, (stats_x + 130, voice_y - 5),
-                  voice_display,
-                  primary_font=font_stat_numbers, fill=CODEC_GREEN_BRIGHT)
+    xp_pct = calculate_stat_percentage(xp, xp_max)
+    msg_pct = calculate_stat_percentage(messages, msg_max)
+    voice_pct = calculate_stat_percentage(voice_hours, voice_max)
 
-    # === BORDER FRAME ===
-    # Draw clean border around the card
-    border_margin = 20
-    draw.rectangle([border_margin, border_margin,
-                   width - border_margin, height - border_margin],
-                  outline=CODEC_GREEN_TEXT, width=3)
+    # Stats grid layout
+    stats_data = [
+        ("EXPERIENCE", f"{xp:,}", "XP", xp_pct),
+        ("MESSAGES", f"{messages:,}", "SENT", msg_pct),
+        ("VOICE TIME", f"{voice_hours}", "HOURS", voice_pct)
+    ]
+
+    stat_box_width = 200
+    stat_box_height = 75
+    spacing = 15
+    total_stats_width = (stat_box_width * 3) + (spacing * 2)
+    start_x = (width - total_stats_width) // 2
+
+    for idx, (label, value, unit, percentage) in enumerate(stats_data):
+        box_x = start_x + (idx * (stat_box_width + spacing))
+        box_y = current_y
+
+        # Stat box background
+        draw.rectangle([box_x, box_y, box_x + stat_box_width, box_y + stat_box_height],
+                      fill=CODEC_BG_MEDIUM, outline=CODEC_GREEN_PRIMARY, width=1)
+
+        # Label
+        label_y = box_y + 8
+        safe_draw_text(draw, (box_x + 10, label_y), label,
+                      primary_font=font_stats_label, fill=CODEC_GREEN_DIM)
+
+        # Value
+        value_y = label_y + 16
+        safe_draw_text(draw, (box_x + 10, value_y), value,
+                      primary_font=font_stats_value, fill=CODEC_BORDER_BRIGHT)
+
+        # Unit label
+        unit_y = value_y + 24
+        safe_draw_text(draw, (box_x + 10, unit_y), unit,
+                      primary_font=font_tiny, fill=CODEC_GREEN_TEXT)
+
+        # Progress bar
+        bar_x = box_x + 10
+        bar_y = box_y + stat_box_height - 12
+        bar_width = stat_box_width - 20
+        bar_height = 6
+
+        draw_progress_bar(draw, bar_x, bar_y, bar_width, bar_height,
+                         percentage, CODEC_GREEN_PRIMARY, CODEC_BG_DARK)
+
+        # Percentage text
+        pct_text = f"{percentage}%"
+        try:
+            pct_bbox = draw.textbbox((0, 0), pct_text, font=font_tiny)
+            pct_width = pct_bbox[2] - pct_bbox[0]
+        except:
+            pct_width = len(pct_text) * 5
+
+        safe_draw_text(draw, (box_x + stat_box_width - pct_width - 10, unit_y),
+                      pct_text, primary_font=font_tiny, fill=CODEC_GREEN_DIM)
+
+    current_y += stat_box_height + 20
+
+    # === ACTIVITY STATUS BAR ===
+    current_y += 5
+    status_x = 50
+    status_width = width - 100
+
+    # Status label
+    safe_draw_text(draw, (status_x, current_y), "ACTIVITY STATUS:",
+                  primary_font=font_small, fill=CODEC_GREEN_TEXT)
+
+    # Calculate overall activity (average of percentages)
+    overall_activity = (xp_pct + msg_pct + voice_pct) // 3
+    activity_label = "ACTIVE" if overall_activity > 60 else "MODERATE" if overall_activity > 30 else "LOW"
+
+    try:
+        label_bbox = draw.textbbox((0, 0), "ACTIVITY STATUS:", font=font_small)
+        label_width = label_bbox[2] - label_bbox[0]
+    except:
+        label_width = 100
+
+    safe_draw_text(draw, (status_x + label_width + 10, current_y), activity_label,
+                  primary_font=font_small, fill=CODEC_GREEN_BRIGHT)
+
+    current_y += 18
+
+    # Activity bar
+    bar_height = 8
+    draw_progress_bar(draw, status_x, current_y, status_width, bar_height,
+                     overall_activity, CODEC_GREEN_BRIGHT, CODEC_BG_MEDIUM)
+
+    current_y += bar_height + 15
 
     # === FOOTER ===
-    footer_y = height - 30
-    footer_text = "Outer Heaven: Exciled Units"
+    footer_y = height - 45
+
+    # Left: Status indicator
+    status_circle_x = 30
+    status_circle_y = footer_y + 6
+    draw.ellipse([status_circle_x, status_circle_y, status_circle_x + 8, status_circle_y + 8],
+                fill=CODEC_GREEN_BRIGHT)
+    safe_draw_text(draw, (status_circle_x + 12, footer_y + 5), "SIGNAL: STRONG",
+                  primary_font=font_small, fill=CODEC_GREEN_TEXT)
+
+    # Center: Main footer
+    footer_text = "<< OUTER HEAVEN: EXCILED UNITS  >>"
     try:
-        footer_bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
+        footer_bbox = draw.textbbox((0, 0), footer_text, font=font_small)
         footer_width = footer_bbox[2] - footer_bbox[0]
     except:
         footer_width = len(footer_text) * 6
 
     footer_x = (width - footer_width) // 2
-    safe_draw_text(draw, (footer_x, footer_y),
-                  footer_text,
-                  primary_font=font_footer, fill=CODEC_GREEN_DIM)
+    safe_draw_text(draw, (footer_x, footer_y + 5), footer_text,
+                  primary_font=font_small, fill=CODEC_GREEN_DIM)
 
-    # === APPLY CODEC EFFECTS ===
+    # Right: Codec frequency
+    codec_text = "CODEC: 140.85"
+    try:
+        codec_bbox = draw.textbbox((0, 0), codec_text, font=font_small)
+        codec_width = codec_bbox[2] - codec_bbox[0]
+    except:
+        codec_width = len(codec_text) * 6
+
+    safe_draw_text(draw, (width - codec_width - 30, footer_y + 5), codec_text,
+                  primary_font=font_small, fill=CODEC_GREEN_TEXT)
+
+    # === APPLY EFFECTS ===
+    draw_codec_frame(draw, width, height)
     base = add_heavy_scanlines(base, spacing=3)
-    base = add_static_noise(base, intensity=12)
+    base = add_static_noise(base, intensity=10)
     base = add_phosphor_glow(base)
 
     return base
@@ -215,320 +333,29 @@ def generate_profile_new_bg(
     username: str,
     role_name: str,
     avatar_url: Optional[str],
-    bio_text: str,
+    bio_text: Optional[str],
     xp: int,
     messages: int,
     voice_hours: int
-) -> Image.Image:
+):
     """
-    New profile card design - Enhanced background version
-    Same layout but with more interesting background patterns
+    Enhanced version of generate_profile_new with background effects.
+    For now, just calls the basic version.
     """
-    width = 750
-    height = 480
-
-    # Create base with gradient pattern
-    base = Image.new("RGB", (width, height), CODEC_BG_DARK)
-    draw = ImageDraw.Draw(base)
-
-    # Add background pattern (circuit-like lines)
-    for i in range(0, width, 50):
-        draw.line([(i, 0), (i + 100, height)], fill=(0, 50, 0), width=1)
-    for i in range(0, height, 50):
-        draw.line([(0, i), (width, i + 100)], fill=(0, 50, 0), width=1)
-
-    # Add slight overlay to darken
-    overlay = Image.new("RGB", (width, height), (0, 0, 0))
-    base = Image.blend(base, overlay, 0.5)
-    draw = ImageDraw.Draw(base)
-
-    # Load fonts
-    font_name = load_font(26, "title")
-    font_subtitle = load_font(18, "text")
-    font_body = load_font(16, "text")
-    font_stat_label = load_font(15, "text")
-    font_stat_value = load_font(18, "text")
-    font_footer = load_font(11, "text")
-
-    # === LEFT SIDE: AVATAR ===
-    avatar_size = 140
-    avatar_x = 40
-    avatar_y = 40
-
-    if avatar_url:
-        avatar = create_profile_avatar(avatar_url, size=(avatar_size, avatar_size))
-        base.paste(avatar, (avatar_x, avatar_y))
-    else:
-        draw.rectangle([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size],
-                      outline=CODEC_GREEN_TEXT, width=2)
-
-    # === RIGHT SIDE: NAME, ROLE, BIO ===
-    info_x = avatar_x + avatar_size + 30
-    info_y = avatar_y
-
-    username_clean = sanitize_username(username)
-    safe_draw_text(draw, (info_x, info_y),
-                  username_clean.upper(),
-                  primary_font=font_name, fill=CODEC_BORDER_BRIGHT)
-
-    role_y = info_y + 35
-    role_text = f"► {role_name.upper()}"
-    safe_draw_text(draw, (info_x, role_y),
-                  role_text,
-                  primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
-
-    bio_y = role_y + 30
-    bio_display = bio_text[:120] if bio_text else "No bio set."
-
-    words = bio_display.split()
-    lines = []
-    current_line = ""
-    max_chars_per_line = 45
-
-    for word in words:
-        if len(current_line + word) <= max_chars_per_line:
-            current_line += word + " "
-        else:
-            if current_line:
-                lines.append(current_line.strip())
-            current_line = word + " "
-            if len(lines) >= 3:
-                break
-
-    if current_line and len(lines) < 3:
-        lines.append(current_line.strip())
-
-    for i, line in enumerate(lines):
-        safe_draw_text(draw, (info_x, bio_y + i * 22),
-                      f'"{line}"' if i == 0 else line,
-                      primary_font=font_body, fill=CODEC_GREEN_TEXT)
-
-    # === DIVIDER ===
-    divider_y = avatar_y + avatar_size + 25
-    draw_codec_divider(draw, 40, divider_y, width - 80)
-
-    # === STATS SECTION ===
-    stats_header_y = divider_y + 20
-    safe_draw_text(draw, (40, stats_header_y),
-                  "STATS",
-                  primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
-
-    stats_y = stats_header_y + 35
-    cell_width = (width - 120) // 2
-    cell_height = 50
-    cell_spacing = 10
-
-    stats_data = [
-        ("XP", f"{xp:,}"),
-        ("MESSAGES", f"{messages:,}"),
-        ("VOICE TIME", f"{voice_hours}H")
-    ]
-
-    for i, (label, value) in enumerate(stats_data):
-        col = i % 2
-        row = i // 2
-        cell_x = 40 + col * (cell_width + cell_spacing)
-        cell_y = stats_y + row * (cell_height + cell_spacing)
-
-        draw_stat_cell(draw, cell_x, cell_y, cell_width, cell_height,
-                      label, value, font_stat_label, font_stat_value)
-
-    # === FOOTER ===
-    footer_y = height - 25
-    footer_text = "Outer Heaven: Exciled Units"
-    try:
-        footer_bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
-        footer_width = footer_bbox[2] - footer_bbox[0]
-    except:
-        footer_width = len(footer_text) * 6
-
-    footer_x = (width - footer_width) // 2
-    safe_draw_text(draw, (footer_x, footer_y),
-                  footer_text,
-                  primary_font=font_footer, fill=CODEC_GREEN_DIM)
-
-    # === APPLY EFFECTS ===
-    draw_codec_frame(draw, width, height)
-    base = add_heavy_scanlines(base, spacing=3)
-    base = add_static_noise(base, intensity=12)
-    base = add_phosphor_glow(base)
-
-    return base
+    return generate_profile_new(username, role_name, avatar_url, bio_text, xp, messages, voice_hours)
 
 
 async def generate_profile_new_nitro(
     username: str,
     role_name: str,
     avatar_url: Optional[str],
-    banner_url: Optional[str],
-    bio_text: str,
+    bio_text: Optional[str],
     xp: int,
     messages: int,
     voice_hours: int
-) -> Image.Image:
+):
     """
-    New profile card design - Nitro banner version
-    Uses user's banner as background for top section (blurred/dimmed)
+    Nitro version of generate_profile_new with enhanced effects.
+    For now, just calls the basic version.
     """
-    width = 750
-    height = 480
-
-    # Create base
-    base = Image.new("RGB", (width, height), CODEC_BG_DARK)
-
-    # === BANNER SECTION (if available) ===
-    banner_height = 210  # Top section height
-
-    if banner_url:
-        banner = await download_banner(banner_url)
-        if banner:
-            # Resize banner to fit width
-            banner = banner.resize((width, banner_height), Image.Resampling.LANCZOS)
-
-            # Apply blur
-            banner = banner.filter(ImageFilter.GaussianBlur(radius=8))
-
-            # Reduce opacity by blending with dark background
-            dark_overlay = Image.new("RGB", (width, banner_height), (0, 10, 0))
-            banner = Image.blend(banner, dark_overlay, 0.7)
-
-            # Apply green tint
-            pixels = banner.load()
-            for y in range(banner_height):
-                for x in range(width):
-                    r, g, b = pixels[x, y]
-                    # Shift to green tint
-                    pixels[x, y] = (r // 4, g, b // 4)
-
-            # Paste banner to top section
-            base.paste(banner, (0, 0))
-
-    draw = ImageDraw.Draw(base)
-
-    # Load fonts
-    font_name = load_font(26, "title")
-    font_subtitle = load_font(18, "text")
-    font_body = load_font(16, "text")
-    font_stat_label = load_font(15, "text")
-    font_stat_value = load_font(18, "text")
-    font_footer = load_font(11, "text")
-
-    # === LEFT SIDE: AVATAR ===
-    avatar_size = 140
-    avatar_x = 40
-    avatar_y = 40
-
-    if avatar_url:
-        avatar = create_profile_avatar(avatar_url, size=(avatar_size, avatar_size))
-        base.paste(avatar, (avatar_x, avatar_y))
-    else:
-        draw.rectangle([avatar_x, avatar_y, avatar_x + avatar_size, avatar_y + avatar_size],
-                      outline=CODEC_GREEN_TEXT, width=2)
-
-    # === RIGHT SIDE: NAME, ROLE, BIO ===
-    info_x = avatar_x + avatar_size + 30
-    info_y = avatar_y
-
-    username_clean = sanitize_username(username)
-    safe_draw_text(draw, (info_x, info_y),
-                  username_clean.upper(),
-                  primary_font=font_name, fill=CODEC_BORDER_BRIGHT)
-
-    role_y = info_y + 35
-    role_text = f"► {role_name.upper()}"
-    safe_draw_text(draw, (info_x, role_y),
-                  role_text,
-                  primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
-
-    bio_y = role_y + 30
-    bio_display = bio_text[:120] if bio_text else "No bio set."
-
-    words = bio_display.split()
-    lines = []
-    current_line = ""
-    max_chars_per_line = 45
-
-    for word in words:
-        if len(current_line + word) <= max_chars_per_line:
-            current_line += word + " "
-        else:
-            if current_line:
-                lines.append(current_line.strip())
-            current_line = word + " "
-            if len(lines) >= 3:
-                break
-
-    if current_line and len(lines) < 3:
-        lines.append(current_line.strip())
-
-    for i, line in enumerate(lines):
-        safe_draw_text(draw, (info_x, bio_y + i * 22),
-                      f'"{line}"' if i == 0 else line,
-                      primary_font=font_body, fill=CODEC_GREEN_TEXT)
-
-    # === DIVIDER ===
-    divider_y = banner_height + 15
-    draw_codec_divider(draw, 40, divider_y, width - 80)
-
-    # === STATS SECTION ===
-    stats_header_y = divider_y + 20
-    safe_draw_text(draw, (40, stats_header_y),
-                  "STATS",
-                  primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
-
-    stats_y = stats_header_y + 35
-    cell_width = (width - 120) // 2
-    cell_height = 50
-    cell_spacing = 10
-
-    stats_data = [
-        ("XP", f"{xp:,}"),
-        ("MESSAGES", f"{messages:,}"),
-        ("VOICE TIME", f"{voice_hours}H")
-    ]
-
-    for i, (label, value) in enumerate(stats_data):
-        col = i % 2
-        row = i // 2
-        cell_x = 40 + col * (cell_width + cell_spacing)
-        cell_y = stats_y + row * (cell_height + cell_spacing)
-
-        draw_stat_cell(draw, cell_x, cell_y, cell_width, cell_height,
-                      label, value, font_stat_label, font_stat_value)
-
-    # === FOOTER ===
-    footer_y = height - 25
-    footer_text = "Outer Heaven: Exciled Units"
-    try:
-        footer_bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
-        footer_width = footer_bbox[2] - footer_bbox[0]
-    except:
-        footer_width = len(footer_text) * 6
-
-    footer_x = (width - footer_width) // 2
-    safe_draw_text(draw, (footer_x, footer_y),
-                  footer_text,
-                  primary_font=font_footer, fill=CODEC_GREEN_DIM)
-
-    # === APPLY EFFECTS ===
-    draw_codec_frame(draw, width, height)
-    base = add_heavy_scanlines(base, spacing=3)
-    base = add_static_noise(base, intensity=12)
-    base = add_phosphor_glow(base)
-
-    return base
-
-
-# === TEST ===
-if __name__ == "__main__":
-    img = generate_profile_new(
-        username="Solid Snake",
-        role_name="FOXHOUND Operative",
-        avatar_url="https://cdn.discordapp.com/embed/avatars/1.png",
-        bio_text="A soldier who fights not for country, but for himself.",
-        xp=12500,
-        messages=850,
-        voice_hours=42
-    )
-    img.save("profile_new_test.png")
-    print("✅ New profile card saved!")
+    return generate_profile_new(username, role_name, avatar_url, bio_text, xp, messages, voice_hours)

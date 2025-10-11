@@ -606,13 +606,13 @@ def generate_simple_profile_card(
                   primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
 
     bio_text_y = bio_y + 25
-    bio_display = bio_text[:80] if bio_text else "No bio set."
+    bio_display = bio_text[:300] if bio_text else "No bio set."
     safe_draw_text(draw, (40, bio_text_y),
                   f'"{bio_display}"',
                   primary_font=font_body, fill=CODEC_GREEN_TEXT)
 
     # === DIVIDER ===
-    divider2_y = bio_text_y + 35
+    divider2_y = bio_text_y + 50
     draw_codec_divider(draw, 40, divider2_y, width - 80)
 
     # === STATS SECTION ===

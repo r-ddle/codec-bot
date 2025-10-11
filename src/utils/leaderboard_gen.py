@@ -373,13 +373,13 @@ def generate_leaderboard(leaderboard_data, category="EXPERIENCE POINTS",
         )
 
     # === FOOTER ===
-    footer_y = height - 40
-    safe_draw_text(draw, (header_x, footer_y),
-                  "◄◄ TACTICAL ESPIONAGE ACTION // CODEC NETWORK ►►",
+    footer_y = height - 45
+    safe_draw_text(draw, ((header_x - -20), footer_y),
+                  "Chat more to climb the ranks!",
                   primary_font=font_footer, fill=CODEC_GREEN_DIM)
 
     # Copyright
-    safe_draw_text(draw, (width - 320, footer_y),
+    safe_draw_text(draw, (width - 280, footer_y),
                   "Outer Heaven: Exciled Units",
                   primary_font=font_footer, fill=CODEC_GREEN_DIM)
 
