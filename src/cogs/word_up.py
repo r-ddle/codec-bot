@@ -11,6 +11,8 @@ Rules:
 import discord
 from discord.ext import commands
 import re
+import json
+import os
 from config.bot_settings import WORD_UP_CHANNEL_ID, FEATURES
 from config.settings import logger
 
@@ -20,9 +22,42 @@ class WordUpGame(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.data_file = 'word_up_data.json'
         self.last_word = None  # Track the last valid word
         self.last_message_id = None  # Track last message with a word
         self.enabled = FEATURES.get('word_up_game', True)
+        self.load_data()
+
+    def load_data(self):
+        """Load word-up data from JSON file."""
+        try:
+            if os.path.exists(self.data_file):
+                with open(self.data_file, 'r') as f:
+                    data = json.load(f)
+                    self.last_word = data.get('last_word')
+                    self.last_message_id = data.get('last_message_id')
+                    if self.last_word:
+                        logger.info(f"Word-Up: Loaded last word '{self.last_word}' from file")
+                    else:
+                        logger.info("Word-Up: No previous word data found")
+            else:
+                logger.info("Word-Up: No data file found, starting fresh")
+        except Exception as e:
+            logger.error(f"Word-Up: Error loading data: {e}")
+            self.last_word = None
+            self.last_message_id = None
+
+    def save_data(self):
+        """Save word-up data to JSON file."""
+        try:
+            data = {
+                'last_word': self.last_word,
+                'last_message_id': self.last_message_id
+            }
+            with open(self.data_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.error(f"Word-Up: Error saving data: {e}")
 
     def extract_word(self, content: str) -> str:
         """
@@ -74,6 +109,7 @@ class WordUpGame(commands.Cog):
         if self.last_word is None:
             self.last_word = word
             self.last_message_id = message.id
+            self.save_data()
             logger.info(f"Word-Up: First word set to '{word}'")
             return
 
@@ -121,6 +157,7 @@ class WordUpGame(commands.Cog):
             # Valid word - update tracker
             self.last_word = word
             self.last_message_id = message.id
+            self.save_data()
             logger.debug(f"Word-Up: Valid word '{word}' by {message.author.name}")
 
     @commands.command(name='wordup_reset')
@@ -129,6 +166,7 @@ class WordUpGame(commands.Cog):
         """Reset the Word-Up game (Admin only)."""
         self.last_word = None
         self.last_message_id = None
+        self.save_data()
 
         embed = discord.Embed(
             title="WORD-UP GAME RESET",
@@ -174,6 +212,7 @@ class WordUpGame(commands.Cog):
 
         self.last_word = cleaned_word
         self.last_message_id = None
+        self.save_data()
 
         embed = discord.Embed(
             title="WORD-UP WORD SET",
