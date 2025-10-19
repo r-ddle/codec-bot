@@ -24,7 +24,7 @@ class ServerEvent(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.event_manager = ServerEventManager()
+        self.event_manager = ServerEventManager(bot=bot)
         self.check_event_tasks.start()
 
     def cog_unload(self):
@@ -54,9 +54,14 @@ class ServerEvent(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def _auto_start_event(self):
-        """Automatically start event on Monday"""
+        """Automatically start event on Monday with dynamic goal"""
         try:
-            event_info = await self.event_manager.start_event()
+            # Get the event channel to determine guild
+            channel = self.bot.get_channel(EVENT_CHANNEL_ID)
+            guild_id = channel.guild.id if channel else None
+
+            # Start event with dynamic goal based on server activity
+            event_info = await self.event_manager.start_event(guild_id=guild_id)
             await self._announce_event_start(event_info)
         except Exception as e:
             logger.error(f"Error auto-starting event: {e}")
@@ -83,12 +88,8 @@ class ServerEvent(commands.Cog):
             await asyncio.to_thread(img.save, buffer, 'PNG')
             buffer.seek(0)
 
-            # Ping event role
-            role = channel.guild.get_role(EVENT_ROLE_ID)
-            ping_text = f"{role.mention}" if role else "@botevent"
-
             await channel.send(
-                f"**This Week's Server Event Has Started!** {ping_text}\n\n"
+                f"**This Week's Server Event Has Started!**\n\n"
                 f"**Goal:** {event_info['goal']:,} messages\n"
                 f"**Rewards:** All participants get +100 XP\n"
                 f"**Bonus:** Top 3 get +500 XP",
@@ -304,15 +305,17 @@ class ServerEvent(commands.Cog):
     async def start_event_command(
         self,
         ctx,
-        goal: Optional[int] = 15000,
+        goal: Optional[int] = None,
         *,
         title: Optional[str] = "Weekly Community Challenge"
     ):
         """
-        Start a new server event (Admin only)
+        Start a new server event with dynamic goal (Admin only)
 
         Usage: !eventstart [goal] [title]
-        Example: !eventstart 20000 "Holiday Special Event"
+        Examples:
+            !eventstart - Auto-calculates goal based on server activity
+            !eventstart 20000 "Holiday Special Event" - Custom goal
         """
         if self.event_manager.is_event_active():
             await ctx.send("An event is already active! Use `!eventend` first.")
@@ -321,10 +324,13 @@ class ServerEvent(commands.Cog):
         try:
             event_info = await self.event_manager.start_event(
                 title=title,
-                message_goal=goal
+                message_goal=goal,
+                guild_id=ctx.guild.id
             )
 
-            await ctx.send(f"✅ Event **{title}** started with goal: {goal:,} messages!")
+            goal_text = f"{event_info['goal']:,}"
+            goal_note = " (dynamically calculated)" if goal is None else ""
+            await ctx.send(f"✅ Event **{title}** started with goal: {goal_text} messages{goal_note}!")
             await self._announce_event_start(event_info)
 
         except Exception as e:
@@ -363,7 +369,8 @@ class ServerEvent(commands.Cog):
             # Start new event with same settings
             event_info = await self.event_manager.start_event(
                 title=info["title"],
-                message_goal=info["goal"]
+                message_goal=info["goal"],
+                guild_id=ctx.guild.id
             )
 
             await ctx.send(f"Event restarted! Progress reset to 0.")

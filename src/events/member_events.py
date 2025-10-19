@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from datetime import datetime, timezone
 
-from config.settings import WELCOME_CHANNEL_ID, logger
+from config.settings import WELCOME_CHANNEL_ID, FAQ_CHANNEL_ID, RULES_CHANNEL_ID, logger
 
 
 class MemberEvents(commands.Cog):
@@ -84,23 +84,21 @@ class MemberEvents(commands.Cog):
                 logger.warning(f"No suitable welcome channel found in {member.guild.name}")
                 return
 
+            faq_link = f"<#{FAQ_CHANNEL_ID}>" if FAQ_CHANNEL_ID else "#faq"
+            rules_link = f"<#{RULES_CHANNEL_ID}>" if RULES_CHANNEL_ID else "#rules"
+
             embed = discord.Embed(
-                title="New Operative Detected",
-                description=f"**{member.display_name}** has joined Outer Heaven!",
+                title="Welcome to Outer Heaven!",
+                description=f"**{member.display_name}**, welcome to our community!\n\nPlease check out our {faq_link} and {rules_link} for important information.",
                 color=0x5865F2
             )
 
+            # Add welcome GIF - replace with your specific GIF URL
+            embed.set_image(url="https://cdn.discordapp.com/attachments/1398689075049009182/1427552150296461312/Welcome_to_Outer_Heaven.gif?ex=68ef470b&is=68edf58b&hm=6a74287498217050c87037ef233c984bfc65685d90ac2b05aa030ebfcd9fcf5e&")
+
             embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
 
-            embed.add_field(
-                name="Rank Up Info",
-                value="Chat in the server to earn XP!\nFirst promotion: **Private** role at 100 XP",
-                inline=False
-            )
-
-            embed.set_footer(text=f"Joined: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
-
-            await welcome_channel.send(f" **Welcome to Mother Base, {member.mention}!**", embed=embed)
+            await welcome_channel.send(embed=embed)
             logger.info(f"Welcome sent to #{welcome_channel.name} for {member.name}")
 
             await self.bot.member_data.save_data_async()

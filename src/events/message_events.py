@@ -62,31 +62,41 @@ class MessageEvents(commands.Cog):
             # ONLY notify if there's a genuine rank change
             if rank_changed and old_rank != new_rank:
                 try:
-                    await message.add_reaction("")
+                    from io import BytesIO
+                    from utils.daily_supply_gen import generate_promotion_card
+
+                    await message.add_reaction("🎖️")
                     role_updated = await update_member_roles(message.author, new_rank)
 
-                    embed = discord.Embed(
-                        title=" RANK PROMOTION",
-                        description=f"**{message.author.display_name}** promoted from **{old_rank}** to **{new_rank}**!",
-                        color=0x599cff
-                    )
+                    # Get role name if granted
+                    rank_data = get_rank_data_by_name(new_rank)
+                    role_name = rank_data.get("role_name") if role_updated else None
 
-                    if role_updated:
-                        rank_data = get_rank_data_by_name(new_rank)
-                        role_name = rank_data.get("role_name", new_rank)
-                        embed.add_field(name=" ROLE ASSIGNED", value=f"Discord role **{role_name}** granted!", inline=False)
-                    else:
-                        embed.add_field(name=" ROLE UPDATE", value="Role assignment failed - contact admin", inline=False)
-
-                    # Show current stats
+                    # Get updated member data
                     updated_member_data = self.bot.member_data.get_member_data(member_id, guild_id)
-                    embed.add_field(
-                        name="CURRENT STATUS",
-                        value=f"```\nRank: {new_rank}\nXP: {format_number(updated_member_data['xp'])}\n```",
-                        inline=False
+
+                    # Generate promotion card image (off the main thread)
+                    img = await asyncio.to_thread(
+                        generate_promotion_card,
+                        username=message.author.display_name,
+                        old_rank=old_rank,
+                        new_rank=new_rank,
+                        current_xp=updated_member_data['xp'],
+                        role_granted=role_name
                     )
 
-                    await message.channel.send(embed=embed)
+                    # Convert to Discord file
+                    image_bytes = BytesIO()
+                    await asyncio.to_thread(img.save, image_bytes, format='PNG')
+                    image_bytes.seek(0)
+
+                    file = discord.File(fp=image_bytes, filename="promotion.png")
+
+                    # Add context message
+                    context_msg = f"**Rank Promotion** - {message.author.mention} promoted from **{old_rank}** to **{new_rank}**!"
+
+                    await message.channel.send(content=context_msg, file=file)
+
                     # Schedule a background save; avoid forcing Neon sync on the event loop
                     self.bot.member_data.schedule_save()
                     asyncio.create_task(self.bot.member_data.save_data_async(force=False))

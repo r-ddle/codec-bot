@@ -1,4 +1,3 @@
-
 import os
 import json
 import asyncio
@@ -15,17 +14,23 @@ class MemberData:
     """Handles all member data storage and progression."""
 
     def __init__(self, neon_db=None):
+        self.neon_db = neon_db  # Neon database instance - set this first
         self.data: Dict[str, Dict[str, Any]] = self.load_data()
         self._save_lock = asyncio.Lock()
         self._pending_saves = False
-        self.neon_db = neon_db  # Neon database instance
         # Track last time we synced to Neon to avoid too many requests
         self._last_neon_sync = 0.0
-        self._run_post_load_migration()
-        logger.info(f"💾 Loaded data for {len(self.data)} guild(s)")
+
+        # Don't set _needs_db_load here - it will be determined in setup_hook
+        self._needs_db_load = False
+
+        # Only run migration if we have data
+        if self.data:
+            self._run_post_load_migration()
+            logger.info(f"💾 Loaded data for {len(self.data)} guild(s)")
 
     def load_data(self) -> Dict[str, Dict[str, Any]]:
-        """Load data from JSON file."""
+        """Load data from JSON file or Neon database if JSON doesn't exist."""
         try:
             if os.path.exists(DATABASE_FILE):
                 with open(DATABASE_FILE, 'r') as f:
@@ -48,12 +53,38 @@ class MemberData:
                     logger.warning("Invalid data format in database file")
                     return {}
             else:
-                logger.info("No database file found, starting fresh")
-                return {}
+                # JSON file doesn't exist, try loading from Neon database
+                logger.info("No local JSON file found, attempting to load from Neon database...")
+                if self.neon_db and self.neon_db.pool:
+                    try:
+                        # This needs to be run in an event loop, but for now we'll handle it in __init__
+                        logger.info("Database available - will load data from Neon in __init__")
+                        return {}  # Return empty dict, will be populated in __init__
+                    except Exception as e:
+                        logger.error(f"Failed to load from Neon database: {e}")
+                        return {}
+                else:
+                    logger.info("No database file found and Neon not available, starting fresh")
+                    return {}
 
         except Exception as e:
             logger.error(f"Error loading member data: {e}")
             return {}
+
+    async def load_from_database(self, target_guild_id: int = 1423506532745875560) -> None:
+        """Load member data from Neon database for a specific guild."""
+        if not self._needs_db_load or not self.neon_db:
+            return
+
+        try:
+            self.data = await self.neon_db.load_all_member_data(target_guild_id=target_guild_id)
+            self._needs_db_load = False
+            self._run_post_load_migration()
+            logger.info(f"💾 Loaded data for {len(self.data)} guild(s) from database")
+        except Exception as e:
+            logger.error(f"Failed to load data from database: {e}")
+            self.data = {}
+            self._needs_db_load = False
 
     async def save_data_async(self, force: bool = False) -> None:
         """Save data with atomic write operation and sync to Neon."""
@@ -78,7 +109,8 @@ class MemberData:
 
                 if self.neon_db and self.neon_db.pool:
                     if force or minutes_since_last >= NEON_SYNC_INTERVAL_MINUTES:
-                        await self.neon_db.backup_all_data(self.data)
+                        # Only backup data for our specific guild
+                        await self.neon_db.backup_all_data(self.data, target_guild_id=1423506532745875560)
                         self._last_neon_sync = now
                     else:
                         logger.debug(f"Skipping Neon sync (only {minutes_since_last:.1f}m since last). Will sync later.")

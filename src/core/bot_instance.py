@@ -71,6 +71,19 @@ class MGSBot(commands.Bot):
         # Connect to Neon database
         await self.neon_db.connect()
 
+        # Check if we need to load from database (no local JSON and database available)
+        if not self.member_data.data and self.neon_db.pool:
+            self.member_data._needs_db_load = True
+
+        # Load member data from database if needed
+        if self.member_data._needs_db_load:
+            await self.member_data.load_from_database()
+
+        # Clean up database to only contain our guild's data
+        if self.neon_db.pool:
+            logger.info("🧹 Cleaning up database to only contain our guild's data...")
+            await self.neon_db.cleanup_other_guilds(1423506532745875560)
+
         # Initialize extended database schema (Phase 1) - safe, won't affect existing data
         if self.neon_db.pool:
             await self.db_extensions.init_extended_schema()

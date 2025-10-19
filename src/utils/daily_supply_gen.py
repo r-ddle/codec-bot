@@ -515,7 +515,7 @@ def generate_daily_supply_card(username, xp_reward,
     draw.text((60, footer_y), "Return in 24:00:00 for next supply drop",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 290, footer_y), "Outer Heaven: Exciled Units",
+    draw.text((width - 290, footer_y), "Outer Heaven: Exiled Units",
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===
@@ -624,7 +624,7 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp, role_grant
     draw.text((60, footer_y), "Keep earning XP to reach the next rank",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 310, footer_y), "Outer Heaven: Exciled Units",
+    draw.text((width - 310, footer_y), "Outer Heaven: Exiled Units",
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===

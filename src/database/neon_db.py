@@ -202,12 +202,13 @@ class NeonDatabase:
 
         return date_value
 
-    async def backup_all_data(self, json_data: Dict[str, Dict[str, Any]], recalculate_ranks: bool = False) -> bool:
+    async def backup_all_data(self, json_data: Dict[str, Dict[str, Any]], target_guild_id: Optional[int] = None, recalculate_ranks: bool = False) -> bool:
         """
         Backup all member data from JSON to Neon.
 
         Args:
             json_data: Complete member data dictionary
+            target_guild_id: If specified, only backup data for this guild
             recalculate_ranks: If True, recalculate all ranks based on XP before syncing
 
         Returns:
@@ -218,15 +219,26 @@ class NeonDatabase:
             return False
 
         try:
+            # Filter data to only the target guild if specified
+            if target_guild_id:
+                target_guild_str = str(target_guild_id)
+                if target_guild_str in json_data:
+                    filtered_data = {target_guild_str: json_data[target_guild_str]}
+                else:
+                    logger.warning(f"Target guild {target_guild_id} not found in data - skipping backup")
+                    return False
+            else:
+                filtered_data = json_data
+
             total_members = 0
-            guild_count = len(json_data)
+            guild_count = len(filtered_data)
 
             # Import here to avoid circular dependency
             if recalculate_ranks:
                 from utils.rank_system import calculate_rank_from_xp
                 logger.info("🔄 Recalculating ranks based on XP...")
 
-            for guild_id, members in json_data.items():
+            for guild_id, members in filtered_data.items():
                 for member_id, data in members.items():
                     # Recalculate rank if requested
                     if recalculate_ranks:
@@ -243,9 +255,12 @@ class NeonDatabase:
                 await conn.execute('''
                     INSERT INTO backup_history (member_count, guild_count, backup_type, status)
                     VALUES ($1, $2, $3, $4)
-                ''', total_members, guild_count, 'full_backup' if not recalculate_ranks else 'full_backup_with_rank_fix', 'success')
+                ''', total_members, guild_count, 'guild_backup' if target_guild_id else 'full_backup' if not recalculate_ranks else 'full_backup_with_rank_fix', 'success')
 
-            logger.info(f"✅ Backed up {total_members} members from {guild_count} guild(s) to Neon")
+            if target_guild_id:
+                logger.info(f"✅ Backed up {total_members} members from guild {target_guild_id} to Neon")
+            else:
+                logger.info(f"✅ Backed up {total_members} members from {guild_count} guild(s) to Neon")
             if recalculate_ranks:
                 logger.info("✅ All ranks recalculated and synced")
             return True
@@ -375,3 +390,114 @@ class NeonDatabase:
         except Exception as e:
             logger.error(f"Error getting backup history: {e}")
             return []
+
+    async def cleanup_other_guilds(self, target_guild_id: int) -> bool:
+        """
+        Remove all member data from guilds other than the target guild.
+
+        Args:
+            target_guild_id: The guild ID to keep data for
+
+        Returns:
+            True if cleanup successful
+        """
+        if not self.pool:
+            logger.warning("Neon database not connected - cannot cleanup")
+            return False
+
+        try:
+            async with self.pool.acquire() as conn:
+                # Get count of members to be deleted
+                count_result = await conn.fetchval('''
+                    SELECT COUNT(*) FROM member_data
+                    WHERE guild_id != $1
+                ''', target_guild_id)
+
+                if count_result == 0:
+                    logger.info(f"✅ No other guild data found to cleanup")
+                    return True
+
+                # Delete data from other guilds
+                await conn.execute('''
+                    DELETE FROM member_data
+                    WHERE guild_id != $1
+                ''', target_guild_id)
+
+                logger.info(f"🧹 Cleaned up {count_result} members from other guilds, keeping only guild {target_guild_id}")
+                return True
+
+        except Exception as e:
+            logger.error(f"❌ Error cleaning up other guild data: {e}")
+            return False
+
+    async def load_all_member_data(self, target_guild_id: Optional[int] = None) -> Dict[str, Dict[str, Any]]:
+        """
+        Load all member data from Neon database.
+
+        Args:
+            target_guild_id: If specified, only load data for this guild. If None, load all guilds.
+
+        Returns:
+            Dictionary with guild_id -> {member_id -> data} structure
+        """
+        if not self.pool:
+            logger.warning("Neon database not connected - cannot load data")
+            return {}
+
+        try:
+            async with self.pool.acquire() as conn:
+                if target_guild_id:
+                    # Only load data for the specific guild
+                    rows = await conn.fetch('''
+                        SELECT * FROM member_data
+                        WHERE guild_id = $1
+                        ORDER BY member_id
+                    ''', target_guild_id)
+                else:
+                    # Load all guilds (legacy behavior)
+                    rows = await conn.fetch('''
+                        SELECT * FROM member_data
+                        ORDER BY guild_id, member_id
+                    ''')
+
+                data = {}
+                for row in rows:
+                    guild_id = str(row['guild_id'])
+                    member_id = str(row['member_id'])
+
+                    if guild_id not in data:
+                        data[guild_id] = {}
+
+                    # Convert database row to member data format
+                    member_data = {
+                        'gmp': row['gmp'],
+                        'xp': row['xp'],
+                        'rank': row['rank'],
+                        'rank_icon': row['rank_icon'],
+                        'messages_sent': row['messages_sent'],
+                        'voice_minutes': row['voice_minutes'],
+                        'reactions_given': row['reactions_given'],
+                        'reactions_received': row['reactions_received'],
+                        'tactical_words_used': row['tactical_words_used'],
+                        'total_tactical_words': row['total_tactical_words'],
+                        'last_daily': row['last_daily'].isoformat() if row['last_daily'] else None,
+                        'daily_streak': row['daily_streak'],
+                        'last_message_time': row['last_message_time'],
+                        'last_tactical_bonus': row['last_tactical_bonus'],
+                        'verified': row['verified'],
+                        'legacy_progression': True  # Assume legacy for database-loaded data
+                    }
+
+                    data[guild_id][member_id] = member_data
+
+                total_members = sum(len(members) for members in data.values())
+                guild_count = len(data)
+                if target_guild_id:
+                    logger.info(f"📥 Loaded {total_members} members from guild {target_guild_id} from Neon database")
+                else:
+                    logger.info(f"📥 Loaded {total_members} members from {guild_count} guild(s) from Neon database")
+                return data
+
+        except Exception as e:
+            logger.error(f"Error loading member data from Neon: {e}")
+            return {}

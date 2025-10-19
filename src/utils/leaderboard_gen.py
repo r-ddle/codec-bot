@@ -346,7 +346,7 @@ def generate_leaderboard(leaderboard_data, category="EXPERIENCE POINTS",
     # Guild name
     guild_y = subtitle_y + 30
     safe_draw_text(draw, (header_x, guild_y),
-                  f"Outer Heaven: Exciled Units",
+                  f"Outer Heaven: Exiled Units",
                   primary_font=font_footer, fill=CODEC_GREEN_DIM)
 
     # Divider line
@@ -380,7 +380,7 @@ def generate_leaderboard(leaderboard_data, category="EXPERIENCE POINTS",
 
     # Copyright
     safe_draw_text(draw, (width - 280, footer_y),
-                  "Outer Heaven: Exciled Units",
+                  "Outer Heaven: Exiled Units",
                   primary_font=font_footer, fill=CODEC_GREEN_DIM)
 
     # === APPLY CODEC FRAME ===

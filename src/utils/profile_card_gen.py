@@ -651,7 +651,7 @@ def generate_simple_profile_card(
 
     # === FOOTER ===
     footer_y = height - 35
-    footer_text = "Outer Heaven: Exciled Units"
+    footer_text = "Outer Heaven: Exiled Units"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_body)
         footer_width = footer_bbox[2] - footer_bbox[0]

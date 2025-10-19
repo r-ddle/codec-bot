@@ -13,10 +13,11 @@ from config.settings import logger
 class ServerEventManager:
     """Manages weekly server events"""
 
-    def __init__(self, data_file: str = "src/server_event_data.json"):
+    def __init__(self, data_file: str = "src/server_event_data.json", bot=None):
         self.data_file = Path(data_file)
         self.data = self._load_data()
         self.save_lock = asyncio.Lock()
+        self.bot = bot  # Bot instance for accessing member_data
 
     def _load_data(self) -> Dict:
         """Load event data from JSON file"""
@@ -34,13 +35,57 @@ class ServerEventManager:
         return {
             "active": False,
             "event_title": "Weekly Community Challenge",
-            "message_goal": 500,
+            "message_goal": 1500,  # Default fallback
             "start_date": None,
             "end_date": None,
             "total_messages": 0,
             "participants": {},  # user_id: message_count
             "last_progress_update": None
         }
+
+    def calculate_dynamic_event_goal(self, guild_id: int) -> int:
+        """
+        Calculate a dynamic event goal based on server average activity.
+        Similar to profile bio algorithm but scaled for community goals.
+
+        Uses 2-3x multiplier of server average (more challenging than individual 75% goal).
+        For weekly events, scales down proportionally from monthly average.
+
+        Args:
+            guild_id: The guild ID to calculate for
+
+        Returns:
+            Dynamic message goal for the event
+        """
+        try:
+            if not self.bot or not hasattr(self.bot, 'member_data'):
+                return 1500  # Fallback if bot not available
+
+            all_members = self.bot.member_data.data.get(guild_id, {})
+
+            # Filter active members (those with messages)
+            active_members = [
+                data for data in all_members.values()
+                if isinstance(data, dict) and data.get('messages_sent', 0) > 0
+            ]
+
+            if not active_members:
+                return 1500  # Fallback if no data
+
+            # Calculate average messages per member
+            total_messages = sum(m.get('messages_sent', 0) for m in active_members)
+            avg_per_member = total_messages // len(active_members)
+
+            # For weekly events: use 2.5x multiplier of server average
+            # This creates a community challenge (harder than individual 75% goal)
+            weekly_goal = int(avg_per_member * len(active_members) * 2.5)
+
+            # Clamp between reasonable bounds (500-30000)
+            return max(500, min(30000, weekly_goal))
+
+        except Exception as e:
+            logger.error(f"Error calculating dynamic event goal: {e}")
+            return 1500  # Fallback on error
 
     async def save_data(self):
         """Save event data to JSON file"""
@@ -72,15 +117,34 @@ class ServerEventManager:
         self,
         title: Optional[str] = None,
         message_goal: Optional[int] = None,
-        custom_end_date: Optional[datetime] = None
+        custom_end_date: Optional[datetime] = None,
+        guild_id: Optional[int] = None
     ) -> Dict:
         """
-        Start a new weekly event
+        Start a new weekly event with dynamic goal calculation.
+
+        If message_goal is not provided, calculates a dynamic goal based on
+        server activity (2.5x multiplier of server average for community challenge).
+
+        Args:
+            title: Event title
+            message_goal: Target message count (if None, calculates dynamically)
+            custom_end_date: Custom end date (if None, uses Sunday 23:59)
+            guild_id: Guild ID for dynamic goal calculation
 
         Returns:
             Dict with event details for announcement
         """
         now = datetime.now()
+
+        # Calculate dynamic goal if not provided
+        if message_goal is None:
+            if guild_id is not None:
+                message_goal = self.calculate_dynamic_event_goal(guild_id)
+                logger.info(f"Dynamic event goal calculated: {message_goal:,} messages")
+            else:
+                message_goal = 1500  # Fallback
+                logger.warning("No guild_id provided for dynamic goal, using fallback")
 
         # Calculate start (Monday) and end (Sunday)
         if custom_end_date:
@@ -96,7 +160,7 @@ class ServerEventManager:
         self.data = {
             "active": True,
             "event_title": title or "Weekly Community Challenge",
-            "message_goal": message_goal or 500,
+            "message_goal": message_goal,
             "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
             "total_messages": 0,
@@ -248,7 +312,6 @@ class ServerEventManager:
                 "user_id": int(user_id),
                 "username": data["username"],
                 "messages": data["message_count"],
-                "gmp": 500,
                 "xp": 100
             })
 
@@ -259,7 +322,6 @@ class ServerEventManager:
                     "user_id": int(user_id),
                     "username": data["username"],
                     "messages": data["message_count"],
-                    "bonus_gmp": 1500,
                     "bonus_xp": 500
                 })
 

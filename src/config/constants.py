@@ -54,7 +54,7 @@ MGS_QUOTES: List[str] = [
 # NEW BALANCED PROGRESSION (Oct 2025) - Existing users keep old thresholds
 MGS_RANKS: List[Dict[str, Any]] = [
     {"name": "Rookie", "required_xp": 0, "icon": "🎖️", "role_name": None},
-    {"name": "Private", "required_xp": 200, "icon": "🪖", "role_name": "Private"},
+    {"name": "Private", "required_xp": 100, "icon": "🪖", "role_name": "Private"},
     {"name": "Specialist", "required_xp": 500, "icon": "🎯", "role_name": "Specialist"},
     {"name": "Corporal", "required_xp": 1000, "icon": "⭐", "role_name": "Corporal"},
     {"name": "Sergeant", "required_xp": 1800, "icon": "🏅", "role_name": "Sergeant"},

@@ -2,9 +2,31 @@
 
 A Metal Gear Solid-themed Discord bot built exclusively for the Outer Heaven: Exiled Soldiers server. Features an XP-based ranking system with automatic role assignment, tactical word detection, daily bonuses, and server-wide leaderboards.
 
-## Overview
+## Setup & Configuration
 
-This bot provides a complete progression and engagement system for server members. Players earn experience points (XP) through various activities including messaging, voice chat participation, and using tactical vocabulary from the Metal Gear Solid series. As members accumulate XP, they automatically receive Discord role promotions that reflect their rank within the server hierarchy.
+### Environment Variables
+
+Create a `.env` file in the project root with the following variables:
+
+```env
+DISCORD_TOKEN=your_bot_token_here
+WELCOME_CHANNEL_ID=123456789012345678
+FAQ_CHANNEL_ID=123456789012345678
+RULES_CHANNEL_ID=123456789012345678
+```
+
+### Welcome System Configuration
+
+The welcome message system automatically sends a welcome embed when new members join. To customize:
+
+1. Set `WELCOME_CHANNEL_ID` to the ID of your welcome channel
+2. Set `FAQ_CHANNEL_ID` and `RULES_CHANNEL_ID` to the respective channel IDs
+3. Update the GIF URL in `src/events/member_events.py` (line ~89) with your welcome GIF
+
+The welcome embed includes:
+- Member's display name and avatar
+- Links to FAQ and Rules channels
+- A welcome GIF (customizable)
 
 ## Core Features
 
@@ -117,7 +139,13 @@ The bot includes automated moderation for the Word-Up word chain game in the ded
 
 ## Database
 
-Member data is stored in `member_data.json` with automatic backups every 12 hours. The database tracks:
+Member data is stored in `src/member_data.json` with automatic backups every 12 hours. The bot also supports cloud backup to a Neon PostgreSQL database for 24/7 hosting and data persistence.
+
+**Guild-Specific Operation**: This bot is designed exclusively for the "Outer Heaven: Exiled Soldiers" server (ID: 1423506532745875560). The bot will only load, store, and backup member data for this specific guild. Data from other servers is automatically filtered out and removed from the database.
+
+**Database Priority**: If no local JSON file exists, the bot will automatically load all member data for the target guild from the Neon database on startup. This ensures your server data is always available even if the local file is missing or corrupted.
+
+### Local Storage (member_data.json)
 
 - XP and current rank
 - Message count, voice minutes, reaction statistics

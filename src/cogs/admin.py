@@ -626,33 +626,49 @@ Lieutenant: 750 XP
 
     @commands.command(name='promote')
     @commands.has_permissions(administrator=True)
-    async def promote_member(self, ctx, member: discord.Member, rank_name: str):
+    async def promote_member(self, ctx, member: discord.Member, rank_name: Optional[str] = None):
         """
-        Manually promote a member to a specific rank.
+        Manually promote a member to a specific rank or next rank.
 
-        Usage: !promote @user "Rank Name"
+        Usage: !promote @user "Rank Name"  (to specific rank)
+               !promote @user              (to next rank)
         Example: !promote @Snake "Big Boss"
+                 !promote @Snake           (promotes one rank up)
         """
         if member.bot:
             await ctx.send("❌ Cannot promote bots.")
             return
 
         try:
-            # Find the rank
-            target_rank = None
-            for rank in MGS_RANKS:
-                if rank["name"].lower() == rank_name.lower():
-                    target_rank = rank
-                    break
-
-            if not target_rank:
-                available_ranks = ", ".join([f'"{r["name"]}"' for r in MGS_RANKS])
-                await ctx.send(f"❌ Invalid rank name. Available ranks:\n{available_ranks}")
-                return
-
-            # Update member data
             member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
             old_rank = member_data.get('rank', 'Recruit')
+            current_xp = member_data.get('xp', 0)
+
+            if rank_name:
+                # Promote to specific rank
+                target_rank = None
+                for rank in MGS_RANKS:
+                    if rank["name"].lower() == rank_name.lower():
+                        target_rank = rank
+                        break
+
+                if not target_rank:
+                    available_ranks = ", ".join([f'"{r["name"]}"' for r in MGS_RANKS])
+                    await ctx.send(f"❌ Invalid rank name. Available ranks:\n{available_ranks}")
+                    return
+            else:
+                # Promote to next rank
+                current_index = 0
+                for i, rank in enumerate(MGS_RANKS):
+                    if rank["name"] == old_rank:
+                        current_index = i
+                        break
+
+                if current_index >= len(MGS_RANKS) - 1:
+                    await ctx.send(f"❌ {member.display_name} is already at maximum rank: {old_rank}")
+                    return
+
+                target_rank = MGS_RANKS[current_index + 1]
 
             member_data['rank'] = target_rank['name']
             member_data['rank_icon'] = target_rank['icon']
@@ -681,6 +697,147 @@ Lieutenant: 750 XP
             await ctx.send(f"❌ Error promoting member: {e}")
             logger.error(f"Error in promote: {e}")
 
+    @commands.command(name='demote')
+    @commands.has_permissions(administrator=True)
+    async def demote_member(self, ctx, member: discord.Member, rank_name: Optional[str] = None):
+        """
+        Manually demote a member to a specific rank or previous rank (no XP change).
+
+        Usage: !demote @user "Rank Name"  (to specific rank)
+               !demote @user              (to previous rank)
+        Example: !demote @Snake Private
+                 !demote @Snake           (demotes one rank down)
+        Note: Only changes rank, XP remains unchanged (for monthly reset system)
+        """
+        if member.bot:
+            await ctx.send("❌ Cannot demote bots.")
+            return
+
+        try:
+            member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
+            old_rank = member_data.get('rank', 'Rookie')
+            current_xp = member_data.get('xp', 0)
+
+            if rank_name:
+                # Demote to specific rank
+                target_rank = None
+                for rank in MGS_RANKS:
+                    if rank["name"].lower() == rank_name.lower():
+                        target_rank = rank
+                        break
+
+                if not target_rank:
+                    available_ranks = ", ".join([f'"{r["name"]}"' for r in MGS_RANKS])
+                    await ctx.send(f"❌ Invalid rank name. Available ranks:\n{available_ranks}")
+                    return
+            else:
+                # Demote to previous rank
+                current_index = 0
+                for i, rank in enumerate(MGS_RANKS):
+                    if rank["name"] == old_rank:
+                        current_index = i
+                        break
+
+                if current_index <= 0:
+                    await ctx.send(f"❌ {member.display_name} is already at the lowest rank: {old_rank}")
+                    return
+
+                target_rank = MGS_RANKS[current_index - 1]
+
+            member_data['rank'] = target_rank['name']
+            member_data['rank_icon'] = target_rank['icon']
+            # XP remains unchanged for monthly reset system
+
+            # Update Discord role
+            role_updated = await update_member_roles(member, target_rank["name"])
+
+            # Save
+            self.bot.member_data.schedule_save()
+            await self.bot.member_data.save_data_async()
+
+            embed = discord.Embed(
+                title="✅ MEMBER DEMOTED",
+                description=f"{member.mention} has been demoted!",
+                color=0xff9900
+            )
+            embed.add_field(name="Old Rank", value=old_rank, inline=True)
+            embed.add_field(name="New Rank", value=f"{target_rank['icon']} {target_rank['name']}", inline=True)
+            embed.add_field(name="XP (Unchanged)", value=f"{current_xp:,}", inline=False)
+            embed.add_field(name="Discord Role", value="✅ Applied" if role_updated else "⚠️ Role not found", inline=False)
+            embed.set_footer(text=f"Demoted by {ctx.author} | XP unchanged for monthly reset system")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error demoting member: {e}")
+            logger.error(f"Error in demote: {e}")
+
+    @commands.command(name='setxp')
+    @commands.has_permissions(administrator=True)
+    async def set_xp(self, ctx, member: discord.Member, amount: int):
+        """
+        Set a member's XP to a specific amount and update rank.
+
+        Usage: !setxp @user 5000
+        Note: This will auto-calculate and update the rank based on XP
+        """
+        if member.bot:
+            await ctx.send("❌ Cannot set XP for bots.")
+            return
+
+        try:
+            member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
+            old_xp = member_data.get('xp', 0)
+            old_rank = member_data.get('rank', 'Rookie')
+
+            # Set new XP
+            new_xp = max(0, amount)  # Don't go below 0
+            member_data['xp'] = new_xp
+
+            # Calculate new rank based on XP
+            legacy_mode = self.bot.member_data.ensure_progression_mode(member_data)
+            new_rank_name, new_rank_icon = calculate_rank_from_xp(new_xp, use_legacy=legacy_mode)
+            rank_changed = new_rank_name != old_rank
+
+            member_data['rank'] = new_rank_name
+            member_data['rank_icon'] = new_rank_icon
+
+            # Update Discord role
+            role_updated = await update_member_roles(member, new_rank_name)
+
+            # Save
+            self.bot.member_data.schedule_save()
+            await self.bot.member_data.save_data_async()
+
+            embed = discord.Embed(
+                title="✅ XP SET",
+                description=f"XP set for {member.mention}",
+                color=0x00ff00
+            )
+            embed.add_field(name="Old XP", value=f"{old_xp:,}", inline=True)
+            embed.add_field(name="New XP", value=f"{new_xp:,}", inline=True)
+            embed.add_field(name="XP Change", value=f"{new_xp - old_xp:+,}", inline=True)
+
+            if rank_changed:
+                embed.add_field(
+                    name="RANK CHANGED",
+                    value=f"{old_rank} → {new_rank_icon} {new_rank_name}",
+                    inline=False
+                )
+                embed.add_field(name="Discord Role", value="✅ Updated" if role_updated else "⚠️ Role not found", inline=False)
+            else:
+                embed.add_field(
+                    name="Current Rank",
+                    value=f"{new_rank_icon} {new_rank_name}",
+                    inline=False
+                )
+
+            embed.set_footer(text=f"Modified by {ctx.author}")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            await ctx.send(f"❌ Error setting XP: {e}")
+            logger.error(f"Error in setxp: {e}")
+
     @commands.command(name='givexp')
     @commands.has_permissions(administrator=True)
     async def give_xp(self, ctx, member: discord.Member, amount: int):
@@ -697,7 +854,7 @@ Lieutenant: 750 XP
         try:
             member_data = self.bot.member_data.get_member_data(member.id, ctx.guild.id)
             old_xp = member_data.get('xp', 0)
-            old_rank = member_data.get('rank', 'Recruit')
+            old_rank = member_data.get('rank', 'Rookie')
 
             # Add XP (can be negative)
             new_xp = max(0, old_xp + amount)  # Don't go below 0
@@ -728,14 +885,14 @@ Lieutenant: 750 XP
 
             if rank_changed:
                 embed.add_field(
-                    name="🎖️ RANK CHANGED",
+                    name="RANK CHANGED",
                     value=f"{old_rank} → {new_rank_icon} {new_rank_name}",
                     inline=False
                 )
             else:
                 embed.add_field(
                     name="Current Rank",
-                    value=f"{member_data.get('rank_icon', '')} {member_data.get('rank', 'Recruit')}",
+                    value=f"{member_data.get('rank_icon', '')} {member_data.get('rank', 'Rookie')}",
                     inline=False
                 )
 
@@ -745,6 +902,91 @@ Lieutenant: 750 XP
         except Exception as e:
             await ctx.send(f"❌ Error giving XP: {e}")
             logger.error(f"Error in givexp: {e}")
+
+    @commands.command(name='adminhelp')
+    @commands.has_permissions(administrator=True)
+    async def admin_help(self, ctx):
+        """Display all available admin commands (Admin only)"""
+        embed = discord.Embed(
+            title="🛠️ ADMIN COMMANDS",
+            description="Administrative tools for server management",
+            color=0x00ff00
+        )
+
+        # Rank Management
+        embed.add_field(
+            name="📊 RANK MANAGEMENT",
+            value="""```
+!promote @user ["Rank"]    - Promote to rank or next (sets XP)
+!demote @user ["Rank"]     - Demote to rank or previous (XP unchanged)
+!auto_promote              - Auto-promote all members by XP
+!test_promotion [@user]    - Test promotion system
+```""",
+            inline=False
+        )
+
+        # XP Management
+        embed.add_field(
+            name="💰 XP MANAGEMENT",
+            value="""```
+!setxp @user 5000       - Set exact XP amount
+!givexp @user 1000      - Add XP (use negative to remove)
+```""",
+            inline=False
+        )
+
+        # Role Management
+        embed.add_field(
+            name="🎭 ROLE MANAGEMENT",
+            value="""```
+!fix_all_roles          - Sync all Discord roles with ranks
+!check_roles            - Check role sync status
+```""",
+            inline=False
+        )
+
+        # Testing Commands
+        embed.add_field(
+            name="🧪 TESTING",
+            value="""```
+!test_daily [@user]     - Test daily reward system
+!test_supply            - Test supply card generation
+!force_daily @user      - Force daily claim reset
+!test_streak @user 5    - Set daily streak for testing
+```""",
+            inline=False
+        )
+
+        # Database Management
+        embed.add_field(
+            name="💾 DATABASE",
+            value="""```
+!neon_backup           - Manual backup to Neon DB
+!neon_status           - Check DB connection
+!neon_resync           - Full resync with database
+```""",
+            inline=False
+        )
+
+        # Server Stats
+        embed.add_field(
+            name="📈 SERVER STATS",
+            value="""```
+!serveravg             - Check server average messages
+```""",
+            inline=False
+        )
+
+        embed.add_field(
+            name="📝 NOTES",
+            value="• **Monthly Reset System**: Use `!demote` instead of changing XP\n"
+                  "• **XP Changes**: `!setxp` and `!givexp` auto-update ranks\n"
+                  "• **Rank Names**: Rookie, Private, Specialist, Corporal, Sergeant, Lieutenant, Captain, Major, Colonel, FOXHOUND",
+            inline=False
+        )
+
+        embed.set_footer(text="All commands require Administrator permissions")
+        await ctx.send(embed=embed)
 
 
 async def setup(bot):

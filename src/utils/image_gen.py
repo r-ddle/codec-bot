@@ -476,15 +476,15 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max,
              fill=CODEC_GREEN_TEXT, font=font_small)  # Changed from font_tiny to font_small
 
     # === FOOTER ===
-    footer_y = height - 35  # Adjusted position
-    safe_draw_text(draw, (info_x, footer_y),
+    footer_y = height - 45  # Adjusted position
+    safe_draw_text(draw, (50, footer_y),
              "◄◄ TACTICAL ESPIONAGE ACTION // CODEC NETWORK ►►",
              primary_font=font_tiny, fallback_font=load_font(font_tiny.size, 'text'),
              fill=CODEC_GREEN_DIM)
 
     # Copyright
-    safe_draw_text(draw, (width - 300, footer_y),  # Adjusted position
-             "Outer Heaven: Exciled Units",
+    safe_draw_text(draw, (width - 270, footer_y),  # Adjusted position
+             "Outer Heaven: Exiled Units",
              primary_font=font_tiny, fallback_font=load_font(font_tiny.size, 'text'),
              fill=CODEC_GREEN_DIM)
 

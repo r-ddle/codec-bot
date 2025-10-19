@@ -236,7 +236,7 @@ def generate_event_results(
         participant_count: Total participants
     """
     width = 800
-    height = 420  # Fixed height since no leaderboard
+    height = 450  # Adjusted height for status line
 
     base = Image.new("RGB", (width, height), CODEC_BG_DARK)
     draw = ImageDraw.Draw(base)
@@ -258,11 +258,17 @@ def generate_event_results(
     title_y = header_y + 30
     title_status = "COMPLETE" if goal_reached else "FAILED"
     safe_draw_text(draw, (40, title_y),
-                  f"{event_title.upper()} - {title_status}",
+                  f"{event_title.upper()}",
                   primary_font=font_title, fill=CODEC_BORDER_BRIGHT)
 
+    # Status on separate line
+    status_y = title_y + 35
+    safe_draw_text(draw, (40, status_y),
+                  title_status,
+                  primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT if goal_reached else CODEC_GREEN_DIM)
+
     # === DIVIDER ===
-    divider1_y = title_y + 42
+    divider1_y = status_y + 42
     draw_codec_divider(draw, 40, divider1_y, width - 80)
 
     # === RESULTS SUMMARY ===
@@ -297,11 +303,11 @@ def generate_event_results(
 
     reward_info_y = rewards_y + 35
     safe_draw_text(draw, (50, reward_info_y),
-                  "ALL PARTICIPANTS: +500 GMP, +700 XP",
+                  "ALL PARTICIPANTS: +100 XP",
                   primary_font=font_body, fill=CODEC_GREEN_TEXT)
 
     safe_draw_text(draw, (50, reward_info_y + 32),
-                  "TOP 3 CONTRIBUTORS: +1500 GMP, +1500 XP",
+                  "TOP 3 CONTRIBUTORS: +500 XP BONUS",
                   primary_font=font_body, fill=CODEC_GREEN_TEXT)
 
     # === FOOTER ===

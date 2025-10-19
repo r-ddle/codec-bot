@@ -377,12 +377,12 @@ class SlashCommands(commands.Cog):
 
         @self.event_group.command(name="start", description="Start an event (Admin only)")
         @app_commands.checks.has_permissions(administrator=True)
-        async def event_start(self, interaction: discord.Interaction, goal: Optional[int] = 500, title: Optional[str] = None):
+        async def event_start(self, interaction: discord.Interaction, goal: Optional[int] = None, title: Optional[str] = None):
             await interaction.response.defer(ephemeral=True)
 
-            # Validate goal range
-            if goal is not None and (goal < 15 or goal > 1000):
-                await interaction.followup.send("❌ Event goal must be between 15 and 1000 messages.", ephemeral=True)
+            # Validate goal range if provided
+            if goal is not None and (goal < 15 or goal > 50000):
+                await interaction.followup.send("❌ Event goal must be between 15 and 50,000 messages.", ephemeral=True)
                 return
 
             event_cog = self.bot.get_cog('ServerEvent')
@@ -391,10 +391,18 @@ class SlashCommands(commands.Cog):
                 return
 
             try:
-                event_info = await event_cog.event_manager.start_event(title=title or "Weekly Community Challenge", message_goal=goal)
+                event_info = await event_cog.event_manager.start_event(
+                    title=title or "Weekly Community Challenge",
+                    message_goal=goal,
+                    guild_id=interaction.guild_id
+                )
                 # Announce to event channel
                 await event_cog._announce_event_start(event_info)
-                await interaction.followup.send(f"✅ Event started: {title or 'Weekly Community Challenge'} with goal {goal:,}")
+
+                goal_note = " (dynamically calculated)" if goal is None else ""
+                await interaction.followup.send(
+                    f"✅ Event started: {title or 'Weekly Community Challenge'} with goal {event_info['goal']:,}{goal_note}"
+                )
             except Exception as e:
                 await interaction.followup.send(f"❌ Error starting event: {e}")
 
@@ -545,14 +553,14 @@ class SlashCommands(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ Error generating event info: {e}")
 
-    @event_group.command(name="start", description="Start an event (Admin only)")
+    @event_group.command(name="start", description="Start an event with dynamic goal (Admin only)")
     @app_commands.checks.has_permissions(administrator=True)
-    async def event_start(self, interaction: discord.Interaction, goal: Optional[int] = 500, title: Optional[str] = None):
+    async def event_start_slash(self, interaction: discord.Interaction, goal: Optional[int] = None, title: Optional[str] = None):
         await interaction.response.defer(ephemeral=True)
 
-        # Validate goal range
-        if goal is not None and (goal < 15 or goal > 1000):
-            await interaction.followup.send("❌ Event goal must be between 15 and 1000 messages.", ephemeral=True)
+        # Validate goal range if provided
+        if goal is not None and (goal < 15 or goal > 50000):
+            await interaction.followup.send("❌ Event goal must be between 15 and 50,000 messages.", ephemeral=True)
             return
 
         event_cog = self.bot.get_cog('ServerEvent')
@@ -561,10 +569,18 @@ class SlashCommands(commands.Cog):
             return
 
         try:
-            event_info = await event_cog.event_manager.start_event(title=title or "Weekly Community Challenge", message_goal=goal)
+            event_info = await event_cog.event_manager.start_event(
+                title=title or "Weekly Community Challenge",
+                message_goal=goal,
+                guild_id=interaction.guild_id
+            )
             # Announce to event channel
             await event_cog._announce_event_start(event_info)
-            await interaction.followup.send(f"✅ Event started: {title or 'Weekly Community Challenge'} with goal {goal:,}")
+
+            goal_note = " (dynamically calculated)" if goal is None else ""
+            await interaction.followup.send(
+                f"✅ Event started: {title or 'Weekly Community Challenge'} with goal {event_info['goal']:,}{goal_note}"
+            )
         except Exception as e:
             await interaction.followup.send(f"❌ Error starting event: {e}")
 
