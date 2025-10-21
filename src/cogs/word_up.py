@@ -50,6 +50,7 @@ class WordUpGame(commands.Cog):
 
         self.load_data()
         self.daily_challenge_task.start()
+        self.challenge_expiry_check.start()
 
         # Word list for daily challenges (sophisticated words)
         self.challenge_words = [
@@ -152,6 +153,7 @@ class WordUpGame(commands.Cog):
     def detect_gibberish(self, word: str) -> bool:
         """
         Detect if a word is likely gibberish.
+        Very lenient - only catches obvious spam/exploits.
 
         Args:
             word: Word to check
@@ -162,32 +164,28 @@ class WordUpGame(commands.Cog):
         word = word.lower()
 
         # Too short or too long
-        if len(word) < 2 or len(word) > 25:
+        if len(word) < 2 or len(word) > 30:
             return True
 
-        # Check vowel-consonant ratio
-        vowels = 'aeiou'
-        vowel_count = sum(1 for char in word if char in vowels)
-        consonant_count = len(word) - vowel_count
+        # Check for too many repeated characters (obvious spam)
+        for i in range(len(word) - 4):
+            if word[i] == word[i+1] == word[i+2] == word[i+3] == word[i+4]:
+                return True
 
-        # No vowels at all or too many consonants in a row
-        if vowel_count == 0:
+        # Must have at least one vowel (y counts as vowel)
+        vowels = 'aeiouy'
+        if not any(char in vowels for char in word):
             return True
 
-        # Check for too many consecutive consonants (more than 5)
+        # Check for extreme consonant streaks (more than 7)
         consonant_streak = 0
         for char in word:
             if char not in vowels:
                 consonant_streak += 1
-                if consonant_streak > 5:
+                if consonant_streak > 7:
                     return True
             else:
                 consonant_streak = 0
-
-        # Check for too many repeated characters
-        for i in range(len(word) - 3):
-            if word[i] == word[i+1] == word[i+2] == word[i+3]:
-                return True
 
         return False
 
@@ -213,12 +211,13 @@ class WordUpGame(commands.Cog):
     async def validate_word_dictionary(self, word: str) -> tuple[bool, str]:
         """
         Validate if a word exists in the dictionary using Free Dictionary API.
+        Only used for daily challenge validation.
 
         Args:
             word: Word to validate
 
         Returns:
-            Tuple of (is_valid, word_type) where word_type is 'dictionary', 'proper_noun', or 'invalid'
+            Tuple of (is_valid, word_type) - always returns (True, 'valid') for regular game
         """
         try:
             async with aiohttp.ClientSession() as session:
@@ -229,54 +228,37 @@ class WordUpGame(commands.Cog):
                     if response.status == 200:
                         return True, 'dictionary'
                     else:
-                        # Not in dictionary, treat as proper noun/unknown word
-                        return True, 'proper_noun'
-        except asyncio.TimeoutError:
-            logger.warning(f"Dictionary API timeout for word: {word}")
-            # On timeout, be lenient and accept the word with reduced points
-            return True, 'proper_noun'
+                        return True, 'valid'
         except Exception as e:
-            logger.error(f"Dictionary API error: {e}")
-            # On error, be lenient and accept as proper noun
-            return True, 'proper_noun'
+            logger.debug(f"Dictionary API error (ignored): {e}")
+            return True, 'valid'
 
-    def calculate_word_points(self, word: str, word_type: str) -> tuple[int, int]:
+    def calculate_word_points(self, word: str) -> tuple[int, int]:
         """
-        Calculate points and XP for a word based on its type and length.
+        Calculate points and XP for a word based on length only.
+        Simple system - all valid words accepted.
 
         Args:
             word: The word
-            word_type: 'dictionary', 'proper_noun', or 'invalid'
 
         Returns:
             Tuple of (points, xp)
         """
-        base_points = 0
         word_len = len(word)
 
-        # Base points by length (keeping numbers small and fair)
+        # Simple points by length
         if word_len <= 4:
-            base_points = 5
+            points = 10
+            xp = 1
         elif word_len <= 6:
-            base_points = 10
+            points = 15
+            xp = 1
         elif word_len <= 8:
-            base_points = 15
+            points = 20
+            xp = 2
         else:
-            base_points = 20
-
-        # Multiplier based on word type
-        if word_type == 'dictionary':
-            # Full points for dictionary words
-            points = base_points * 2
-            xp = 2  # Small XP boost
-        elif word_type == 'proper_noun':
-            # Reduced points for names/slang/unknown words
-            points = int(base_points * 0.6)
-            xp = 1  # Minimal XP
-        else:
-            # Still award minimal points for invalid/unknown
-            points = int(base_points * 0.4)
-            xp = 0
+            points = 25
+            xp = 2
 
         return points, xp
 
@@ -359,38 +341,40 @@ class WordUpGame(commands.Cog):
         self.save_data()
         return warnings
 
-    @tasks.loop(hours=24)
+    @tasks.loop(minutes=1)
     async def daily_challenge_task(self):
-        """Generate a new daily challenge every 24 hours."""
+        """Generate a new daily challenge at random times throughout the day."""
         try:
-            # Pick a random sophisticated word that starts with the current last letter
-            if self.last_word:
-                target_letter = self.last_word[-1].lower()
-                # Filter words that start with the target letter
-                valid_words = [w for w in self.challenge_words if w[0].lower() == target_letter]
+            # Only trigger if no active challenge and random chance (roughly every 30-90 minutes)
+            if not self.daily_challenge and random.random() < 0.033:  # ~5% chance per minute = ~1 challenge per 20 mins
+                # Pick a random sophisticated word that starts with the current last letter
+                if self.last_word:
+                    target_letter = self.last_word[-1].lower()
+                    # Filter words that start with the target letter
+                    valid_words = [w for w in self.challenge_words if w[0].lower() == target_letter]
 
-                if valid_words:
-                    self.daily_challenge_word = random.choice(valid_words)
-                else:
-                    # If no words match, pick any word
-                    self.daily_challenge_word = random.choice(self.challenge_words)
+                    if valid_words:
+                        self.daily_challenge_word = random.choice(valid_words)
+                    else:
+                        # If no words match, pick any word
+                        self.daily_challenge_word = random.choice(self.challenge_words)
 
-                self.daily_challenge = target_letter
-                self.daily_challenge_expires = datetime.now() + timedelta(seconds=30)
-                self.challenge_participants.clear()
+                    self.daily_challenge = target_letter
+                    self.daily_challenge_expires = datetime.now() + timedelta(seconds=30)
+                    self.challenge_participants.clear()
 
-                # Post challenge in the word-up channel
-                channel = self.bot.get_channel(WORD_UP_CHANNEL_ID)
-                if channel:
-                    embed = discord.Embed(
-                        title="Daily Challenge",
-                        description=f"Find a sophisticated word starting with **{target_letter.upper()}**",
-                        color=0x599cff
-                    )
-                    embed.add_field(
-                        name="Time Limit",
-                        value="30 seconds",
-                        inline=True
+                    # Post challenge in the word-up channel
+                    channel = self.bot.get_channel(WORD_UP_CHANNEL_ID)
+                    if channel:
+                        embed = discord.Embed(
+                            title="Daily Challenge",
+                            description=f"Find a sophisticated word starting with **{target_letter.upper()}**",
+                            color=0x599cff
+                        )
+                        embed.add_field(
+                            name="Time Limit",
+                            value="30 seconds",
+                            inline=True
                     )
                     embed.add_field(
                         name="Reward",
@@ -406,6 +390,53 @@ class WordUpGame(commands.Cog):
 
     @daily_challenge_task.before_loop
     async def before_daily_challenge(self):
+        """Wait until the bot is ready before starting the task."""
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(seconds=5)
+    async def challenge_expiry_check(self):
+        """Check if daily challenge has expired and announce if someone won."""
+        try:
+            if (self.daily_challenge and
+                self.daily_challenge_expires and
+                datetime.now() > self.daily_challenge_expires):
+
+                # Challenge expired - announce winner or timeout
+                channel = self.bot.get_channel(WORD_UP_CHANNEL_ID)
+
+                if self.challenge_participants:
+                    logger.info(f"Word-Up: Challenge completed by {len(self.challenge_participants)} participant(s)")
+                else:
+                    if channel:
+                        embed = discord.Embed(
+                            title="Daily Challenge Expired",
+                            description=f"Time's up! No one found the word: **{self.daily_challenge_word.upper()}**",
+                            color=0xFF6B6B
+                        )
+                        await channel.send(embed=embed)
+                    logger.info(f"Word-Up: Challenge expired - word was: {self.daily_challenge_word}")
+
+                # Clear challenge
+                self.daily_challenge = None
+                self.daily_challenge_word = None
+                self.daily_challenge_expires = None
+                self.challenge_participants.clear()
+                self.save_data()
+
+                # Remind about the current game state
+                if self.last_word and channel:
+                    embed = discord.Embed(
+                        description=f"Challenge over! Next word must start with **{self.last_word[-1].upper()}**",
+                        color=0x599cff
+                    )
+                    await channel.send(embed=embed)
+        except Exception as e:
+            logger.error(f"Error in challenge expiry check: {e}")
+        except Exception as e:
+            logger.error(f"Error in challenge expiry check: {e}")
+
+    @challenge_expiry_check.before_loop
+    async def before_challenge_expiry(self):
         """Wait until the bot is ready before starting the task."""
         await self.bot.wait_until_ready()
 
@@ -430,6 +461,20 @@ class WordUpGame(commands.Cog):
         # If no word found, it might be just a GIF/image - that's allowed
         if not word:
             return
+
+        # Check if daily challenge is active
+        if (self.daily_challenge and
+            self.daily_challenge_expires and
+            datetime.now() < self.daily_challenge_expires):
+
+            # Challenge is active - only accept challenge words
+            if word.lower() == self.daily_challenge_word.lower():
+                # This will be handled below in the challenge section
+                pass
+            else:
+                # During challenge, ignore regular words and remind them after challenge ends
+                logger.debug(f"Word-Up: Ignoring regular word '{word}' during challenge - waiting for '{self.daily_challenge_word}'")
+                return
 
         # Detect invisible characters
         if self.detect_invisible_chars(message.content):
@@ -518,12 +563,8 @@ class WordUpGame(commands.Cog):
             logger.info(f"Word-Up: {message.author.name} tried to reuse word '{word}' (cooldown)")
             return
 
-        # Validate word with dictionary API
-        is_valid, word_type = await self.validate_word_dictionary(word)
-
-        # Always accept words, just adjust points based on type
-        # Calculate points and XP
-        points, xp = self.calculate_word_points(word, word_type)
+        # Simple point calculation - all words accepted
+        points, xp = self.calculate_word_points(word)
 
         # Check for daily challenge completion
         bonus_points = 0
@@ -533,14 +574,15 @@ class WordUpGame(commands.Cog):
         if (self.daily_challenge and
             self.daily_challenge_expires and
             datetime.now() < self.daily_challenge_expires and
-            message.author.id not in self.challenge_participants):
+            message.author.id not in self.challenge_participants and
+            word.lower() == self.daily_challenge_word.lower()):
 
-            if word.lower() == self.daily_challenge_word:
-                bonus_points = 150
-                bonus_xp = 5
-                is_challenge = True
-                self.challenge_participants.add(message.author.id)
-                logger.info(f"Word-Up: {message.author.name} completed daily challenge with '{word}'!")
+            # Challenge word found! Award bonus
+            bonus_points = 150
+            bonus_xp = 5
+            is_challenge = True
+            self.challenge_participants.add(message.author.id)
+            logger.info(f"Word-Up: {message.author.name} completed daily challenge with '{word}'!")
 
         # Award points and XP
         total_points = points + bonus_points
@@ -555,7 +597,7 @@ class WordUpGame(commands.Cog):
         self.last_message_id = message.id
         self.save_data()
 
-        # Send confirmation with points
+        # Only announce daily challenge completion
         if is_challenge:
             embed = discord.Embed(
                 title="Daily Challenge Complete",
@@ -565,26 +607,8 @@ class WordUpGame(commands.Cog):
             embed.add_field(name="Word", value=word.upper(), inline=True)
             embed.add_field(name="Reward", value=f"{total_points} pts, {total_xp} XP", inline=True)
             await message.channel.send(embed=embed)
-        else:
-            # React with checkmark for valid words
-            await message.add_reaction("✅")
 
-            # Show points breakdown based on word type
-            if word_type == 'proper_noun' and len(word) <= 6:
-                # Unknown/proper noun
-                embed = discord.Embed(
-                    description=f"+{points} pts (unknown word, reduced)",
-                    color=0xFFA500
-                )
-                await message.reply(embed=embed, mention_author=False, delete_after=5)
-            elif word_type == 'dictionary' and len(word) >= 7:
-                # Long dictionary word bonus
-                embed = discord.Embed(
-                    description=f"+{points} pts (long word)",
-                    color=0x00D166
-                )
-                await message.reply(embed=embed, mention_author=False, delete_after=5)
-
+        # Silent - no reactions or messages for normal words
         logger.debug(f"Word-Up: Valid word '{word}' by {message.author.name} - {points} pts, {xp} XP")
 
     async def award_points(self, member: discord.Member, guild_id: int, points: int, xp: int):
