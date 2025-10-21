@@ -176,6 +176,12 @@ class MGSBot(commands.Bot):
 
                     logger.debug(f"Reset XP for member {member_id} in guild {guild_id}: {old_xp} -> 0")
 
+                # Also reset Word-Up points monthly
+                if member_data_entry.get('word_up_points', 0) > 0:
+                    old_points = member_data_entry['word_up_points']
+                    member_data_entry['word_up_points'] = 0
+                    logger.debug(f"Reset Word-Up points for member {member_id} in guild {guild_id}: {old_points} -> 0")
+
         # Mark reset as completed
         self.last_monthly_reset = current_date
         self.save_bot_metadata()
@@ -195,6 +201,7 @@ class MGSBot(commands.Bot):
                         title="🌙 MONTHLY XP RESET",
                         description=f"**{current_date.strftime('%B %Y')}** XP reset completed!\n\n"
                                   f"• All XP has been reset to 0\n"
+                                  f"• Word-Up points reset to 0\n"
                                   f"• Ranks and multipliers are preserved\n"
                                   f"• New monthly competition begins now!",
                         color=0x599cff

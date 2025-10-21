@@ -297,6 +297,7 @@ class SlashCommands(commands.Cog):
     @app_commands.choices(board_type=[
         app_commands.Choice(name="XP (Experience)", value="xp"),
         app_commands.Choice(name="Messages Sent", value="messages"),
+        app_commands.Choice(name="Word-Up Points", value="wordup"),
     ])
     @enforce_rate_limit('leaderboard')
     async def leaderboard_slash(self, interaction: discord.Interaction, board_type: str = "xp"):
@@ -304,6 +305,67 @@ class SlashCommands(commands.Cog):
         await interaction.response.defer()  # This might take a moment
 
         guild_data = self.bot.member_data.data.get(str(interaction.guild.id), {})
+
+        # Special handling for Word-Up leaderboard (with image)
+        if board_type == "wordup":
+            try:
+                # Collect Word-Up scores
+                scores = []
+                for member_id, data in guild_data.items():
+                    word_up_points = data.get('word_up_points', 0)
+                    if word_up_points > 0:
+                        member = interaction.guild.get_member(int(member_id))
+                        if member:
+                            scores.append((member.display_name, word_up_points))
+
+                if not scores:
+                    embed = discord.Embed(
+                        description="No Word-Up scores yet. Start playing",
+                        color=0xFF6B6B
+                    )
+                    await interaction.followup.send(embed=embed)
+                    return
+
+                # Sort by points
+                scores.sort(key=lambda x: x[1], reverse=True)
+                top_10 = scores[:10]
+
+                # Format leaderboard data for image generation
+                leaderboard_data = [
+                    (idx + 1, name, points, "WORD-UP")
+                    for idx, (name, points) in enumerate(top_10)
+                ]
+
+                # Generate leaderboard image
+                from utils.leaderboard_gen import generate_leaderboard
+                import os
+
+                img = generate_leaderboard(
+                    leaderboard_data=leaderboard_data,
+                    category="WORD-UP POINTS",
+                    unit_suffix="PTS",
+                    guild_name=interaction.guild.name.upper()
+                )
+
+                # Save and send
+                filename = f"wordup_leaderboard_{interaction.guild.id}.png"
+                img.save(filename)
+
+                file = discord.File(filename, filename="wordup_leaderboard.png")
+                await interaction.followup.send(file=file)
+
+                # Clean up
+                os.remove(filename)
+                return
+
+            except Exception as e:
+                logger.error(f"Error generating Word-Up leaderboard: {e}")
+                embed = discord.Embed(
+                    description="Error generating leaderboard",
+                    color=0xFF6B6B
+                )
+                await interaction.followup.send(embed=embed)
+                return
 
         # Sort based on type
         sort_key = board_type if board_type != "messages" else "messages_sent"

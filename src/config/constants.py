@@ -97,7 +97,8 @@ DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "join_date": None,
     "bio": "",
     "verified": False,
-    "legacy_progression": False
+    "legacy_progression": False,
+    "word_up_points": 0
 }
 
 # XP Multipliers based on rank
