@@ -8,7 +8,6 @@ Rules:
 - Players can send GIFs after their word
 - Non-word messages (only GIFs, embeds, etc.) are allowed
 - Tiered rewards: Dictionary words get more points than slang/names
-- Daily challenges for bonus rewards
 - Anti-spam and anti-troll protection
 """
 import discord
@@ -16,9 +15,8 @@ from discord.ext import commands, tasks
 import re
 import json
 import os
-import aiohttp
 import asyncio
-import random
+import datetime
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Set
 from config.bot_settings import WORD_UP_CHANNEL_ID, FEATURES
@@ -36,31 +34,14 @@ class WordUpGame(commands.Cog):
         self.data_file = 'word_up_data.json'
         self.last_word = None  # Track the last valid word
         self.last_message_id = None  # Track last message with a word
+        self.last_player_id = None  # Track the last player who played a valid word
         self.enabled = FEATURES.get('word_up_game', True)
-
-        # Daily challenge system
-        self.daily_challenge = None
-        self.daily_challenge_word = None
-        self.daily_challenge_expires = None
-        self.challenge_participants = set()
 
         # User word history and warning tracking
         self.user_word_history: Dict[int, Dict[str, datetime]] = {}  # user_id -> {word: last_used_time}
         self.user_warnings: Dict[int, int] = {}  # user_id -> warning_count
 
         self.load_data()
-        self.daily_challenge_task.start()
-        self.challenge_expiry_check.start()
-
-        # Word list for daily challenges (sophisticated words)
-        self.challenge_words = [
-            'ephemeral', 'ubiquitous', 'juxtapose', 'paradigm', 'eloquent',
-            'resilient', 'pragmatic', 'meticulous', 'ambiguous', 'profound',
-            'tenacious', 'benevolent', 'eloquence', 'luminous', 'intricate',
-            'magnificent', 'serene', 'vivacious', 'zealous', 'aesthetic',
-            'catalyst', 'diligent', 'elaborate', 'facetious', 'gregarious',
-            'harmonious', 'innovative', 'judicious', 'kinetic', 'labyrinth'
-        ]
 
     def load_data(self):
         """Load word-up data from JSON file."""
@@ -70,13 +51,7 @@ class WordUpGame(commands.Cog):
                     data = json.load(f)
                     self.last_word = data.get('last_word')
                     self.last_message_id = data.get('last_message_id')
-
-                    # Load daily challenge data
-                    self.daily_challenge = data.get('daily_challenge')
-                    self.daily_challenge_word = data.get('daily_challenge_word')
-                    challenge_expires_str = data.get('daily_challenge_expires')
-                    if challenge_expires_str:
-                        self.daily_challenge_expires = datetime.fromisoformat(challenge_expires_str)
+                    self.last_player_id = data.get('last_player_id')
 
                     # Load user word history (convert timestamps back to datetime)
                     history_data = data.get('user_word_history', {})
@@ -100,6 +75,7 @@ class WordUpGame(commands.Cog):
             logger.error(f"Word-Up: Error loading data: {e}")
             self.last_word = None
             self.last_message_id = None
+            self.last_player_id = None
 
     def save_data(self):
         """Save word-up data to JSON file."""
@@ -115,9 +91,7 @@ class WordUpGame(commands.Cog):
             data = {
                 'last_word': self.last_word,
                 'last_message_id': self.last_message_id,
-                'daily_challenge': self.daily_challenge,
-                'daily_challenge_word': self.daily_challenge_word,
-                'daily_challenge_expires': self.daily_challenge_expires.isoformat() if self.daily_challenge_expires else None,
+                'last_player_id': self.last_player_id,
                 'user_word_history': history_data,
                 'user_warnings': {str(user_id): count for user_id, count in self.user_warnings.items()}
             }
@@ -207,31 +181,6 @@ class WordUpGame(commands.Cog):
             '\u2060',  # Word joiner
         ]
         return any(char in content for char in invisible_chars)
-
-    async def validate_word_dictionary(self, word: str) -> tuple[bool, str]:
-        """
-        Validate if a word exists in the dictionary using Free Dictionary API.
-        Only used for daily challenge validation.
-
-        Args:
-            word: Word to validate
-
-        Returns:
-            Tuple of (is_valid, word_type) - always returns (True, 'valid') for regular game
-        """
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"https://api.dictionaryapi.dev/api/v2/entries/en/{word.lower()}",
-                    timeout=aiohttp.ClientTimeout(total=3)
-                ) as response:
-                    if response.status == 200:
-                        return True, 'dictionary'
-                    else:
-                        return True, 'valid'
-        except Exception as e:
-            logger.debug(f"Dictionary API error (ignored): {e}")
-            return True, 'valid'
 
     def calculate_word_points(self, word: str) -> tuple[int, int]:
         """
@@ -341,105 +290,6 @@ class WordUpGame(commands.Cog):
         self.save_data()
         return warnings
 
-    @tasks.loop(minutes=1)
-    async def daily_challenge_task(self):
-        """Generate a new daily challenge at random times throughout the day."""
-        try:
-            # Only trigger if no active challenge and random chance (roughly every 30-90 minutes)
-            if not self.daily_challenge and random.random() < 0.033:  # ~5% chance per minute = ~1 challenge per 20 mins
-                # Pick a random sophisticated word that starts with the current last letter
-                if self.last_word:
-                    target_letter = self.last_word[-1].lower()
-                    # Filter words that start with the target letter
-                    valid_words = [w for w in self.challenge_words if w[0].lower() == target_letter]
-
-                    if valid_words:
-                        self.daily_challenge_word = random.choice(valid_words)
-                    else:
-                        # If no words match, pick any word
-                        self.daily_challenge_word = random.choice(self.challenge_words)
-
-                    self.daily_challenge = target_letter
-                    self.daily_challenge_expires = datetime.now() + timedelta(seconds=30)
-                    self.challenge_participants.clear()
-
-                    # Post challenge in the word-up channel
-                    channel = self.bot.get_channel(WORD_UP_CHANNEL_ID)
-                    if channel:
-                        embed = discord.Embed(
-                            title="Daily Challenge",
-                            description=f"Find a sophisticated word starting with **{target_letter.upper()}**",
-                            color=0x599cff
-                        )
-                        embed.add_field(
-                            name="Time Limit",
-                            value="30 seconds",
-                            inline=True
-                    )
-                    embed.add_field(
-                        name="Reward",
-                        value="150 points + 5 XP",
-                        inline=True
-                    )
-                    await channel.send(embed=embed)
-
-                self.save_data()
-                logger.info(f"Word-Up: Daily challenge started - word: {self.daily_challenge_word}")
-        except Exception as e:
-            logger.error(f"Error in daily challenge task: {e}")
-
-    @daily_challenge_task.before_loop
-    async def before_daily_challenge(self):
-        """Wait until the bot is ready before starting the task."""
-        await self.bot.wait_until_ready()
-
-    @tasks.loop(seconds=5)
-    async def challenge_expiry_check(self):
-        """Check if daily challenge has expired and announce if someone won."""
-        try:
-            if (self.daily_challenge and
-                self.daily_challenge_expires and
-                datetime.now() > self.daily_challenge_expires):
-
-                # Challenge expired - announce winner or timeout
-                channel = self.bot.get_channel(WORD_UP_CHANNEL_ID)
-
-                if self.challenge_participants:
-                    logger.info(f"Word-Up: Challenge completed by {len(self.challenge_participants)} participant(s)")
-                else:
-                    if channel:
-                        embed = discord.Embed(
-                            title="Daily Challenge Expired",
-                            description=f"Time's up! No one found the word: **{self.daily_challenge_word.upper()}**",
-                            color=0xFF6B6B
-                        )
-                        await channel.send(embed=embed)
-                    logger.info(f"Word-Up: Challenge expired - word was: {self.daily_challenge_word}")
-
-                # Clear challenge
-                self.daily_challenge = None
-                self.daily_challenge_word = None
-                self.daily_challenge_expires = None
-                self.challenge_participants.clear()
-                self.save_data()
-
-                # Remind about the current game state
-                if self.last_word and channel:
-                    embed = discord.Embed(
-                        description=f"Challenge over! Next word must start with **{self.last_word[-1].upper()}**",
-                        color=0x599cff
-                    )
-                    await channel.send(embed=embed)
-        except Exception as e:
-            logger.error(f"Error in challenge expiry check: {e}")
-        except Exception as e:
-            logger.error(f"Error in challenge expiry check: {e}")
-
-    @challenge_expiry_check.before_loop
-    async def before_challenge_expiry(self):
-        """Wait until the bot is ready before starting the task."""
-        await self.bot.wait_until_ready()
-
     @commands.Cog.listener()
     async def on_message(self, message):
         """Monitor messages in the Word-Up channel."""
@@ -461,20 +311,6 @@ class WordUpGame(commands.Cog):
         # If no word found, it might be just a GIF/image - that's allowed
         if not word:
             return
-
-        # Check if daily challenge is active
-        if (self.daily_challenge and
-            self.daily_challenge_expires and
-            datetime.now() < self.daily_challenge_expires):
-
-            # Challenge is active - only accept challenge words
-            if word.lower() == self.daily_challenge_word.lower():
-                # This will be handled below in the challenge section
-                pass
-            else:
-                # During challenge, ignore regular words and remind them after challenge ends
-                logger.debug(f"Word-Up: Ignoring regular word '{word}' during challenge - waiting for '{self.daily_challenge_word}'")
-                return
 
         # Detect invisible characters
         if self.detect_invisible_chars(message.content):
@@ -504,12 +340,34 @@ class WordUpGame(commands.Cog):
         if self.last_word is None:
             self.last_word = word
             self.last_message_id = message.id
+            self.last_player_id = message.author.id
             self.save_data()
 
             # Award minimal points for first word
             await self.award_points(message.author, message.guild.id, 10, 0)
 
             logger.info(f"Word-Up: First word set to '{word}'")
+            return
+
+        # Check if the same player is trying to play consecutively
+        if self.last_player_id == message.author.id:
+            embed = discord.Embed(
+                description=f"{message.author.mention} You can't play two words in a row! Wait for another player to go first.",
+                color=0xFF6B6B
+            )
+            embed.add_field(
+                name="Last Player",
+                value=f"**{message.author.display_name}** (you)",
+                inline=True
+            )
+            embed.add_field(
+                name="Your Word",
+                value=f"{word.upper()}",
+                inline=True
+            )
+
+            await message.reply(embed=embed, mention_author=False, delete_after=10)
+            logger.info(f"Word-Up: {message.author.name} tried to play consecutively with '{word}'")
             return
 
         # Check if the word starts with the last letter of the previous word
@@ -566,28 +424,8 @@ class WordUpGame(commands.Cog):
         # Simple point calculation - all words accepted
         points, xp = self.calculate_word_points(word)
 
-        # Check for daily challenge completion
-        bonus_points = 0
-        bonus_xp = 0
-        is_challenge = False
-
-        if (self.daily_challenge and
-            self.daily_challenge_expires and
-            datetime.now() < self.daily_challenge_expires and
-            message.author.id not in self.challenge_participants and
-            word.lower() == self.daily_challenge_word.lower()):
-
-            # Challenge word found! Award bonus
-            bonus_points = 150
-            bonus_xp = 5
-            is_challenge = True
-            self.challenge_participants.add(message.author.id)
-            logger.info(f"Word-Up: {message.author.name} completed daily challenge with '{word}'!")
-
         # Award points and XP
-        total_points = points + bonus_points
-        total_xp = xp + bonus_xp
-        await self.award_points(message.author, message.guild.id, total_points, total_xp)
+        await self.award_points(message.author, message.guild.id, points, xp)
 
         # Record word usage
         self.record_word_usage(message.author.id, word)
@@ -595,18 +433,8 @@ class WordUpGame(commands.Cog):
         # Valid word - update tracker
         self.last_word = word
         self.last_message_id = message.id
+        self.last_player_id = message.author.id
         self.save_data()
-
-        # Only announce daily challenge completion
-        if is_challenge:
-            embed = discord.Embed(
-                title="Daily Challenge Complete",
-                description=f"{message.author.mention} found the word",
-                color=0x00D166
-            )
-            embed.add_field(name="Word", value=word.upper(), inline=True)
-            embed.add_field(name="Reward", value=f"{total_points} pts, {total_xp} XP", inline=True)
-            await message.channel.send(embed=embed)
 
         # Silent - no reactions or messages for normal words
         logger.debug(f"Word-Up: Valid word '{word}' by {message.author.name} - {points} pts, {xp} XP")
@@ -647,6 +475,7 @@ class WordUpGame(commands.Cog):
         """Reset the Word-Up game (Admin only)."""
         self.last_word = None
         self.last_message_id = None
+        self.last_player_id = None
         self.user_word_history.clear()
         self.user_warnings.clear()
         self.save_data()
@@ -678,18 +507,24 @@ class WordUpGame(commands.Cog):
                 value=f"**{self.last_word[-1].upper()}**",
                 inline=True
             )
+
+            # Show last player if available
+            if self.last_player_id:
+                try:
+                    last_player = await ctx.guild.fetch_member(self.last_player_id)
+                    embed.add_field(
+                        name="Last Player",
+                        value=f"**{last_player.display_name}**",
+                        inline=True
+                    )
+                except:
+                    embed.add_field(
+                        name="Last Player",
+                        value=f"**Unknown**",
+                        inline=True
+                    )
         else:
             embed.description = "No words have been played yet. Start the chain"
-
-        # Show daily challenge status
-        if self.daily_challenge and self.daily_challenge_expires:
-            if datetime.now() < self.daily_challenge_expires:
-                time_left = (self.daily_challenge_expires - datetime.now()).seconds
-                embed.add_field(
-                    name="Daily Challenge",
-                    value=f"Active - {time_left}s remaining",
-                    inline=False
-                )
 
         await ctx.send(embed=embed)
 
@@ -709,6 +544,7 @@ class WordUpGame(commands.Cog):
 
         self.last_word = cleaned_word
         self.last_message_id = None
+        self.last_player_id = None
         self.save_data()
 
         embed = discord.Embed(
@@ -723,42 +559,6 @@ class WordUpGame(commands.Cog):
         )
         await ctx.send(embed=embed)
         logger.info(f"Word-Up word manually set to '{cleaned_word}' by {ctx.author.name}")
-
-    @commands.command(name='wordup_challenge')
-    @commands.has_permissions(manage_messages=True)
-    async def start_challenge(self, ctx):
-        """Manually start a daily challenge (Admin only)."""
-        if not self.last_word:
-            embed = discord.Embed(
-                description="No active word. Start the game first",
-                color=0xFF6B6B
-            )
-            await ctx.send(embed=embed)
-            return
-
-        target_letter = self.last_word[-1].lower()
-        valid_words = [w for w in self.challenge_words if w[0].lower() == target_letter]
-
-        if valid_words:
-            self.daily_challenge_word = random.choice(valid_words)
-        else:
-            self.daily_challenge_word = random.choice(self.challenge_words)
-
-        self.daily_challenge = target_letter
-        self.daily_challenge_expires = datetime.now() + timedelta(seconds=30)
-        self.challenge_participants.clear()
-        self.save_data()
-
-        embed = discord.Embed(
-            title="Daily Challenge",
-            description=f"Find a sophisticated word starting with **{target_letter.upper()}**",
-            color=0x599cff
-        )
-        embed.add_field(name="Time Limit", value="30 seconds", inline=True)
-        embed.add_field(name="Reward", value="150 points + 5 XP", inline=True)
-        await ctx.send(embed=embed)
-
-        logger.info(f"Word-Up challenge started by {ctx.author.name}")
 
     @commands.command(name='wordup_clearwarnings')
     @commands.has_permissions(manage_messages=True)
