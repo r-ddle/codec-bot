@@ -351,6 +351,9 @@ class WordUpGame(commands.Cog):
 
         # Check if the same player is trying to play consecutively
         if self.last_player_id == message.author.id:
+            # Delete the violating message immediately
+            await message.delete()
+
             embed = discord.Embed(
                 description=f"{message.author.mention} You can't play two words in a row! Wait for another player to go first.",
                 color=0xFF6B6B
@@ -366,7 +369,7 @@ class WordUpGame(commands.Cog):
                 inline=True
             )
 
-            await message.reply(embed=embed, mention_author=False, delete_after=10)
+            await message.channel.send(embed=embed, delete_after=10)
             logger.info(f"Word-Up: {message.author.name} tried to play consecutively with '{word}'")
             return
 
@@ -375,7 +378,9 @@ class WordUpGame(commands.Cog):
         actual_start = word[0].lower()
 
         if actual_start != expected_start:
-            # Rule violation
+            # Rule violation - delete the violating message immediately
+            await message.delete()
+
             embed = discord.Embed(
                 description=f"{message.author.mention} Your word must start with **{expected_start.upper()}**",
                 color=0xFF6B6B
@@ -391,7 +396,7 @@ class WordUpGame(commands.Cog):
                 inline=True
             )
 
-            await message.reply(embed=embed, mention_author=False, delete_after=15)
+            await message.channel.send(embed=embed, delete_after=15)
             warnings = await self.add_warning(message.author)
 
             logger.info(
@@ -403,6 +408,9 @@ class WordUpGame(commands.Cog):
         # Check word cooldown (3 day duplicate prevention)
         last_used = self.check_word_cooldown(message.author.id, word)
         if last_used:
+            # Delete the violating message immediately
+            await message.delete()
+
             cooldown_end = last_used + timedelta(days=3)
             time_left = cooldown_end - datetime.now()
             hours_left = int(time_left.total_seconds() / 3600)
@@ -417,7 +425,7 @@ class WordUpGame(commands.Cog):
                 inline=False
             )
 
-            await message.reply(embed=embed, mention_author=False, delete_after=10)
+            await message.channel.send(embed=embed, delete_after=10)
             logger.info(f"Word-Up: {message.author.name} tried to reuse word '{word}' (cooldown)")
             return
 
