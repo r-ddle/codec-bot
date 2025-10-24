@@ -28,6 +28,7 @@ async def load_extensions(bot: MGSBot):
         'cogs.slash_commands',
         'cogs.server_event',  # Weekly server events
         'cogs.word_up',  # Word-Up game moderation
+        'cogs.utility',  # Utility commands
         # Event handlers
         'events.member_events',
         'events.message_events',
