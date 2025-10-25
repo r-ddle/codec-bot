@@ -56,6 +56,24 @@ def load_font(size, font_type="text"):
     # For 'text' type, use reliable system fonts instead of custom fonts
     # This prevents unsupported character issues
     if font_type == "text":
+        # First, try to load from public/fonts
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        fonts_dir = os.path.join(base_dir, "public", "fonts")
+        custom_fonts = [
+            os.path.join(fonts_dir, "Helvetica.ttf"),
+            os.path.join(fonts_dir, "helvetica.ttf"),
+            os.path.join(fonts_dir, "Arial.ttf"),
+            os.path.join(fonts_dir, "arial.ttf")
+        ]
+
+        for font_path in custom_fonts:
+            try:
+                font = ImageFont.truetype(font_path, size)
+                return font
+            except Exception:
+                continue
+
+        # Fall back to system fonts
         fallback_fonts = [
             "arial.ttf",
             "Arial.ttf",

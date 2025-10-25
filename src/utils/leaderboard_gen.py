@@ -44,6 +44,23 @@ def load_font(size, font_type="text"):
     import os
 
     if font_type == "text":
+        # First, try to load from public/fonts
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        fonts_dir = os.path.join(base_dir, "public", "fonts")
+        custom_fonts = [
+            os.path.join(fonts_dir, "Helvetica.ttf"),
+            os.path.join(fonts_dir, "helvetica.ttf"),
+            os.path.join(fonts_dir, "Arial.ttf"),
+            os.path.join(fonts_dir, "arial.ttf")
+        ]
+
+        for font_path in custom_fonts:
+            try:
+                return ImageFont.truetype(font_path, size)
+            except Exception:
+                continue
+
+        # Fall back to system fonts
         fallback_fonts = [
             "arial.ttf", "Arial.ttf", "arialbd.ttf",
             "helvetica.ttf", "Helvetica.ttf",
