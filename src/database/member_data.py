@@ -73,14 +73,15 @@ class MemberData:
 
     async def load_from_database(self, target_guild_id: int = 1423506532745875560) -> None:
         """Load member data from Neon database for a specific guild."""
-        if not self._needs_db_load or not self.neon_db:
+        if not self.neon_db or not self.neon_db.pool:
+            logger.warning("Cannot load from database: Neon database not available")
             return
 
         try:
             self.data = await self.neon_db.load_all_member_data(target_guild_id=target_guild_id)
             self._needs_db_load = False
             self._run_post_load_migration()
-            logger.info(f"💾 Loaded data for {len(self.data)} guild(s) from database")
+            logger.info(f"✅ Loaded data for {len(self.data)} guild(s) from Neon database")
         except Exception as e:
             logger.error(f"Failed to load data from database: {e}")
             self.data = {}

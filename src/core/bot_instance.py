@@ -71,13 +71,16 @@ class MGSBot(commands.Bot):
         # Connect to Neon database
         await self.neon_db.connect()
 
-        # Check if we need to load from database (no local JSON and database available)
-        if not self.member_data.data and self.neon_db.pool:
-            self.member_data._needs_db_load = True
-
-        # Load member data from database if needed
-        if self.member_data._needs_db_load:
+        # Force load from database if:
+        # 1. Local JSON is empty/missing, OR
+        # 2. Database is available (prioritize database as source of truth)
+        if self.neon_db.pool:
+            # Always check database first if it's available
+            logger.info("🔄 Loading member data from Neon database (database is source of truth)...")
             await self.member_data.load_from_database()
+        elif not self.member_data.data:
+            # Fallback to local JSON if database isn't available
+            logger.warning("⚠️ Database not available, using local JSON data")
 
         # Clean up database to only contain our guild's data
         if self.neon_db.pool:

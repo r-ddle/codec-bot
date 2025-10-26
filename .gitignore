@@ -40,6 +40,7 @@ env/
 # Bot Data & Logs
 *.log
 bot.log
+member_data.json
 member_data.json.backup
 member_data.json.tmp
 *.bak
