@@ -232,7 +232,6 @@ class NeonDatabase:
 
             total_members = 0
             guild_count = len(filtered_data)
-
             # Import here to avoid circular dependency
             if recalculate_ranks:
                 from utils.rank_system import calculate_rank_from_xp
@@ -242,8 +241,7 @@ class NeonDatabase:
                 for member_id, data in members.items():
                     # Recalculate rank if requested
                     if recalculate_ranks:
-                        use_legacy = bool(data.get('legacy_progression', False))
-                        correct_rank, correct_icon = calculate_rank_from_xp(data.get('xp', 0), use_legacy=use_legacy)
+                        correct_rank, correct_icon = calculate_rank_from_xp(data.get('xp', 0))
                         data['rank'] = correct_rank
                         data['rank_icon'] = correct_icon
 
@@ -484,8 +482,7 @@ class NeonDatabase:
                         'daily_streak': row['daily_streak'],
                         'last_message_time': row['last_message_time'],
                         'last_tactical_bonus': row['last_tactical_bonus'],
-                        'verified': row['verified'],
-                        'legacy_progression': True  # Assume legacy for database-loaded data
+                        'verified': row['verified']
                     }
 
                     data[guild_id][member_id] = member_data

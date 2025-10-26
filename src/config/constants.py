@@ -50,8 +50,7 @@ MGS_QUOTES: List[str] = [
 
 
 
-# XP-BASED RANK PROGRESSION SYSTEM
-# NEW BALANCED PROGRESSION (Oct 2025) - Existing users keep old thresholds
+# XP-BASED RANK PROGRESSION SYSTEM (Unified)
 MGS_RANKS: List[Dict[str, Any]] = [
     {"name": "Rookie", "required_xp": 0, "icon": "🎖️", "role_name": None},
     {"name": "Private", "required_xp": 100, "icon": "🪖", "role_name": "Private"},
@@ -64,23 +63,6 @@ MGS_RANKS: List[Dict[str, Any]] = [
     {"name": "Colonel", "required_xp": 12000, "icon": "🌟", "role_name": "Colonel"},
     {"name": "FOXHOUND", "required_xp": 18000, "icon": "🦊", "role_name": "Foxhound"}
 ]
-
-# LEGACY RANKS (Pre-Oct 2025 users) - Used for backward compatibility
-MGS_RANKS_LEGACY: List[Dict[str, Any]] = [
-    {"name": "Rookie", "required_xp": 0, "icon": "🎖️", "role_name": None},
-    {"name": "Private", "required_xp": 100, "icon": "🪖", "role_name": "Private"},
-    {"name": "Specialist", "required_xp": 200, "icon": "🎯", "role_name": "Specialist"},
-    {"name": "Corporal", "required_xp": 350, "icon": "⭐", "role_name": "Corporal"},
-    {"name": "Sergeant", "required_xp": 500, "icon": "🏅", "role_name": "Sergeant"},
-    {"name": "Lieutenant", "required_xp": 750, "icon": "🎖️", "role_name": "Lieutenant"},
-    {"name": "Captain", "required_xp": 1000, "icon": "💫", "role_name": "Captain"},
-    {"name": "Major", "required_xp": 1500, "icon": "⚡", "role_name": "Major"},
-    {"name": "Colonel", "required_xp": 2500, "icon": "🌟", "role_name": "Colonel"},
-    {"name": "FOXHOUND", "required_xp": 4000, "icon": "🦊", "role_name": "FOXHOUND"}
-]
-
-# Cutoff date for legacy progression (October 8, 2025)
-LEGACY_USER_CUTOFF = "2025-10-08"
 
 # Default member data structure (single source of truth)
 DEFAULT_MEMBER_DATA: Dict[str, Any] = {
@@ -97,7 +79,6 @@ DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "join_date": None,
     "bio": "",
     "verified": False,
-    "legacy_progression": False,
     "word_up_points": 0
 }
 

@@ -71,7 +71,7 @@ class ProfileCommands(commands.Cog):
                     messages=member_data.get('messages_sent', 0),
                     voice_hours=voice_hours,
                     current_rank=member_data.get('rank', 'Rookie'),
-                    use_legacy=member_data.get('legacy_progression', False),
+                    
                     server_avg_messages=server_avg
                 )
 
@@ -130,7 +130,7 @@ class ProfileCommands(commands.Cog):
                     messages=member_data.get('messages_sent', 0),
                     voice_hours=voice_hours,
                     current_rank=member_data.get('rank', 'Rookie'),
-                    use_legacy=member_data.get('legacy_progression', False),
+                    
                     server_avg_messages=server_avg
                 )
 
@@ -172,7 +172,7 @@ class ProfileCommands(commands.Cog):
                     messages=member_data.get('messages_sent', 0),
                     voice_hours=voice_hours,
                     current_rank=member_data.get('rank', 'Rookie'),
-                    use_legacy=member_data.get('legacy_progression', False),
+                    
                     server_avg_messages=server_avg
                 )
 
@@ -214,7 +214,7 @@ class ProfileCommands(commands.Cog):
                     messages=member_data.get('messages_sent', 0),
                     voice_hours=voice_hours,
                     current_rank=member_data.get('rank', 'Rookie'),
-                    use_legacy=member_data.get('legacy_progression', False),
+                    
                     server_avg_messages=server_avg
                 )
 

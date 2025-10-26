@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime
 from config.settings import DATABASE_FILE, logger, NEON_SYNC_INTERVAL_MINUTES
 from config.constants import ACTIVITY_REWARDS, DEFAULT_MEMBER_DATA, RANK_XP_MULTIPLIERS
-from utils.rank_system import calculate_rank_from_xp, is_legacy_user
+from utils.rank_system import calculate_rank_from_xp
 
 
 class MemberData:
@@ -24,9 +24,7 @@ class MemberData:
         # Don't set _needs_db_load here - it will be determined in setup_hook
         self._needs_db_load = False
 
-        # Only run migration if we have data
         if self.data:
-            self._run_post_load_migration()
             logger.info(f"💾 Loaded data for {len(self.data)} guild(s)")
 
     def load_data(self) -> Dict[str, Dict[str, Any]]:
@@ -80,7 +78,6 @@ class MemberData:
         try:
             self.data = await self.neon_db.load_all_member_data(target_guild_id=target_guild_id)
             self._needs_db_load = False
-            self._run_post_load_migration()
             logger.info(f"✅ Loaded data for {len(self.data)} guild(s) from Neon database")
         except Exception as e:
             logger.error(f"Failed to load data from database: {e}")
@@ -148,9 +145,8 @@ class MemberData:
         if member_key in self.data[guild_key]:
             existing_data = self.data[guild_key][member_key]
 
-            use_legacy = self._ensure_progression_mode(existing_data)
             # Ensure rank matches XP
-            correct_rank, correct_icon = calculate_rank_from_xp(existing_data.get("xp", 0), use_legacy=use_legacy)
+            correct_rank, correct_icon = calculate_rank_from_xp(existing_data.get("xp", 0))
             existing_data["rank"] = correct_rank
             existing_data["rank_icon"] = correct_icon
 
@@ -164,7 +160,6 @@ class MemberData:
             default_member = DEFAULT_MEMBER_DATA.copy()
             # Update join_date to current date
             default_member["join_date"] = datetime.now().strftime('%Y-%m-%d')
-            default_member["legacy_progression"] = is_legacy_user(default_member["join_date"])
 
             self.data[guild_key][member_key] = default_member
             self.schedule_save()
@@ -214,10 +209,8 @@ class MemberData:
         # Add XP
         member_data["xp"] += xp_change
 
-        use_legacy = member_data.get('legacy_progression', False)
-
         # Recalculate rank based on new XP
-        new_rank, new_icon = calculate_rank_from_xp(member_data["xp"], use_legacy=use_legacy)
+        new_rank, new_icon = calculate_rank_from_xp(member_data["xp"])
         member_data["rank"] = new_rank
         member_data["rank_icon"] = new_icon
 
@@ -229,48 +222,6 @@ class MemberData:
 
         # Return whether rank changed
         return old_rank != new_rank, new_rank
-
-
-    def _ensure_progression_mode(self, member_record: Dict[str, Any]) -> bool:
-        """Ensure legacy progression flag is present and return progression mode."""
-        if 'legacy_progression' in member_record and member_record['legacy_progression'] is not None:
-            member_record['legacy_progression'] = bool(member_record['legacy_progression'])
-            return member_record['legacy_progression']
-
-        # Determine based on join date if available
-        join_date = member_record.get('join_date')
-        if join_date:
-            use_legacy = is_legacy_user(join_date)
-        else:
-            # If no join date (pre-migration data) treat as legacy if they have progress stored
-            use_legacy = member_record.get('xp', 0) > 0 or member_record.get('rank', 'Rookie') != 'Rookie'
-
-        member_record['legacy_progression'] = use_legacy
-        return use_legacy
-
-    def ensure_progression_mode(self, member_record: Dict[str, Any]) -> bool:
-        """Public wrapper to ensure progression mode is set on a member record."""
-        return self._ensure_progression_mode(member_record)
-
-    def _run_post_load_migration(self) -> None:
-        """Ensure all member records contain progression metadata and correct ranks."""
-        if not self.data:
-            return
-
-        migrated = False
-        for guild_members in self.data.values():
-            for member_record in guild_members.values():
-                use_legacy = self._ensure_progression_mode(member_record)
-                xp = member_record.get('xp', 0)
-                rank_name, rank_icon = calculate_rank_from_xp(xp, use_legacy=use_legacy)
-
-                if member_record.get('rank') != rank_name or member_record.get('rank_icon') != rank_icon:
-                    member_record['rank'] = rank_name
-                    member_record['rank_icon'] = rank_icon
-                    migrated = True
-
-        if migrated:
-            self.schedule_save()
 
     def award_daily_bonus(self, member_id: int, guild_id: int) -> Tuple[bool, int, bool, Optional[str]]:
         """
