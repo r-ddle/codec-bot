@@ -24,17 +24,18 @@ class NeonDatabase:
         self.database_url = database_url or os.getenv('NEON_DATABASE_URL')
         self.pool: Optional[asyncpg.Pool] = None
 
-    async def connect(self) -> bool:
+    async def connect(self) -> Tuple[bool, Optional[str]]:
         """
         Establish connection pool to Neon database.
 
         Returns:
-            True if connection successful, False otherwise
+            Tuple of (success: bool, error_message: Optional[str])
         """
         try:
             if not self.database_url:
-                logger.warning("⚠️ NEON_DATABASE_URL not set - database features disabled")
-                return False
+                msg = "NEON_DATABASE_URL not set - database features disabled"
+                logger.warning(f"⚠️ {msg}")
+                return False, msg
 
             self.pool = await asyncpg.create_pool(
                 self.database_url,
@@ -46,11 +47,12 @@ class NeonDatabase:
             # Initialize database schema
             await self.init_schema()
             logger.info("✅ Connected to Neon PostgreSQL database")
-            return True
+            return True, None
 
         except Exception as e:
-            logger.error(f"❌ Failed to connect to Neon database: {e}")
-            return False
+            error_msg = str(e)
+            logger.error(f"❌ Failed to connect to Neon database: {error_msg}")
+            return False, error_msg
 
     async def close(self):
         """Close database connection pool."""

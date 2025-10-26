@@ -367,9 +367,17 @@ Lieutenant: 750 XP
     @commands.has_permissions(administrator=True)
     async def neon_backup(self, ctx):
         """Manually trigger backup to Neon database (Admin only)."""
-        if not self.bot.neon_db or not self.bot.neon_db.pool:
-            await ctx.send(" Neon database is not connected!")
+        if not self.bot.neon_db:
+            await ctx.send(" Neon database module not initialized!")
             return
+
+        if not self.bot.neon_db.pool:
+            await ctx.send(" Neon database not connected. Attempting to reconnect...")
+            connected, error = await self.bot.neon_db.connect()
+            if not connected:
+                await ctx.send(f" Failed to reconnect to Neon database: {error}")
+                return
+            await ctx.send(" Successfully reconnected to Neon database!")
 
         try:
             await ctx.send(" Starting backup to Neon database...")
@@ -434,9 +442,17 @@ Lieutenant: 750 XP
     @commands.has_permissions(administrator=True)
     async def neon_resync(self, ctx):
         """Force full resync to Neon with rank recalculation (Admin only)."""
-        if not self.bot.neon_db or not self.bot.neon_db.pool:
-            await ctx.send(" Neon database is not connected!")
+        if not self.bot.neon_db:
+            await ctx.send(" Neon database module not initialized!")
             return
+
+        if not self.bot.neon_db.pool:
+            await ctx.send(" Neon database not connected. Attempting to reconnect...")
+            connected, error = await self.bot.neon_db.connect()
+            if not connected:
+                await ctx.send(f" Failed to reconnect to Neon database: {error}")
+                return
+            await ctx.send(" Successfully reconnected to Neon database!")
 
         try:
             # First, reload data from member_data.json to ensure we have latest

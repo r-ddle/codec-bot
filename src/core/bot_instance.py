@@ -69,7 +69,9 @@ class MGSBot(commands.Bot):
     async def setup_hook(self):
         """Initialize bot tasks and sync slash commands."""
         # Connect to Neon database
-        await self.neon_db.connect()
+        success, error = await self.neon_db.connect()
+        if not success:
+            logger.error(f"Failed to connect to Neon database: {error}")
 
         # Force load from database if:
         # 1. Local JSON is empty/missing, OR
