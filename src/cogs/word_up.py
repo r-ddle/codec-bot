@@ -12,6 +12,7 @@ Rules:
 """
 import discord
 from discord.ext import commands, tasks
+from discord.ui import LayoutView
 import re
 import json
 import os
@@ -21,6 +22,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Set
 from config.bot_settings import WORD_UP_CHANNEL_ID, FEATURES
 from config.settings import logger
+from utils.components_builder import create_error_message, create_success_message, create_info_card, create_stats_container
 
 # Word-Up role ID for trolls
 WORDUP_TROLL_ROLE_ID = 1430095326114484315
@@ -315,11 +317,13 @@ class WordUpGame(commands.Cog):
         # Detect invisible characters
         if self.detect_invisible_chars(message.content):
             await message.delete()
-            embed = discord.Embed(
-                description="Invalid characters detected",
-                color=0xFF6B6B
+            container = create_error_message(
+                title="Invalid Input",
+                description="Invalid characters detected"
             )
-            await message.channel.send(embed=embed, delete_after=10)
+            view = LayoutView()
+            view.add_item(container)
+            await message.channel.send(view=view, delete_after=10)
             warnings = await self.add_warning(message.author)
             logger.warning(f"Word-Up: Invisible chars detected from {message.author.name}")
             return
@@ -327,11 +331,13 @@ class WordUpGame(commands.Cog):
         # Detect gibberish
         if self.detect_gibberish(word):
             await message.delete()
-            embed = discord.Embed(
-                description=f"{message.author.mention} That doesn't look like a valid word",
-                color=0xFF6B6B
+            container = create_error_message(
+                title="Invalid Word",
+                description=f"{message.author.mention} That doesn't look like a valid word"
             )
-            await message.channel.send(embed=embed, delete_after=10)
+            view = LayoutView()
+            view.add_item(container)
+            await message.channel.send(view=view, delete_after=10)
             warnings = await self.add_warning(message.author)
             logger.info(f"Word-Up: Gibberish detected from {message.author.name}: {word}")
             return
@@ -354,22 +360,13 @@ class WordUpGame(commands.Cog):
             # Delete the violating message immediately
             await message.delete()
 
-            embed = discord.Embed(
-                description=f"{message.author.mention} You can't play two words in a row! Wait for another player to go first.",
-                color=0xFF6B6B
+            container = create_error_message(
+                title="Can't Play Consecutively",
+                description=f"{message.author.mention} You can't play two words in a row! Wait for another player to go first.\n\n**Last Player:** {message.author.display_name} (you)\n**Your Word:** {word.upper()}"
             )
-            embed.add_field(
-                name="Last Player",
-                value=f"**{message.author.display_name}** (you)",
-                inline=True
-            )
-            embed.add_field(
-                name="Your Word",
-                value=f"{word.upper()}",
-                inline=True
-            )
-
-            await message.channel.send(embed=embed, delete_after=10)
+            view = LayoutView()
+            view.add_item(container)
+            await message.channel.send(view=view, delete_after=10)
             logger.info(f"Word-Up: {message.author.name} tried to play consecutively with '{word}'")
             return
 
@@ -381,22 +378,13 @@ class WordUpGame(commands.Cog):
             # Rule violation - delete the violating message immediately
             await message.delete()
 
-            embed = discord.Embed(
-                description=f"{message.author.mention} Your word must start with **{expected_start.upper()}**",
-                color=0xFF6B6B
+            container = create_error_message(
+                title="Wrong Starting Letter",
+                description=f"{message.author.mention} Your word must start with **{expected_start.upper()}**\n\n**Previous word:** {self.last_word.upper()}\n**Your word:** {word.upper()} (starts with {actual_start.upper()})"
             )
-            embed.add_field(
-                name="Previous word",
-                value=f"{self.last_word.upper()}",
-                inline=True
-            )
-            embed.add_field(
-                name="Your word",
-                value=f"{word.upper()} (starts with {actual_start.upper()})",
-                inline=True
-            )
-
-            await message.channel.send(embed=embed, delete_after=15)
+            view = LayoutView()
+            view.add_item(container)
+            await message.channel.send(view=view, delete_after=15)
             warnings = await self.add_warning(message.author)
 
             logger.info(
@@ -415,17 +403,13 @@ class WordUpGame(commands.Cog):
             time_left = cooldown_end - datetime.now()
             hours_left = int(time_left.total_seconds() / 3600)
 
-            embed = discord.Embed(
-                description=f"{message.author.mention} You used that word recently",
-                color=0xFF6B6B
+            container = create_error_message(
+                title="Word on Cooldown",
+                description=f"{message.author.mention} You used that word recently\n\n**Cooldown:** {hours_left} hours remaining"
             )
-            embed.add_field(
-                name="Cooldown",
-                value=f"{hours_left} hours remaining",
-                inline=False
-            )
-
-            await message.channel.send(embed=embed, delete_after=10)
+            view = LayoutView()
+            view.add_item(container)
+            await message.channel.send(view=view, delete_after=10)
             logger.info(f"Word-Up: {message.author.name} tried to reuse word '{word}' (cooldown)")
             return
 
@@ -488,53 +472,48 @@ class WordUpGame(commands.Cog):
         self.user_warnings.clear()
         self.save_data()
 
-        embed = discord.Embed(
+        container = create_success_message(
             title="Word-Up Game Reset",
-            description="The word chain has been reset. Start a new word",
-            color=0x00D166
+            description="The word chain has been reset. Start a new word"
         )
-        await ctx.send(embed=embed)
+        view = LayoutView()
+        view.add_item(container)
+        await ctx.send(view=view)
         logger.info(f"Word-Up game reset by {ctx.author.name}")
 
     @commands.command(name='wordup_status')
     async def word_up_status(self, ctx):
         """Check the current Word-Up game status."""
-        embed = discord.Embed(
-            title="Word-Up Game Status",
-            color=0x599cff
-        )
-
         if self.last_word:
-            embed.add_field(
-                name="Last Word",
-                value=f"**{self.last_word.upper()}**",
-                inline=True
-            )
-            embed.add_field(
-                name="Next Letter",
-                value=f"**{self.last_word[-1].upper()}**",
-                inline=True
-            )
+            stats = {
+                "Last Word": f"**{self.last_word.upper()}**",
+                "Next Letter": f"**{self.last_word[-1].upper()}**"
+            }
 
             # Show last player if available
             if self.last_player_id:
                 try:
                     last_player = await ctx.guild.fetch_member(self.last_player_id)
-                    embed.add_field(
-                        name="Last Player",
-                        value=f"**{last_player.display_name}**",
-                        inline=True
-                    )
+                    stats["Last Player"] = f"**{last_player.display_name}**"
                 except:
-                    embed.add_field(
-                        name="Last Player",
-                        value=f"**Unknown**",
-                        inline=True
-                    )
-        else:
-            embed.description = "No words have been played yet. Start the chain"
+                    stats["Last Player"] = "**Unknown**"
 
-        await ctx.send(embed=embed)
+            container = create_stats_container(
+                title="Word-Up Game Status",
+                description="",
+                stats=stats,
+                color_code="blue"
+            )
+        else:
+            container = create_info_card(
+                title="Word-Up Game Status",
+                description="No words have been played yet. Start the chain",
+                color_code="blue"
+            )
+
+        view = LayoutView()
+        view.add_item(container)
+        await ctx.send(view=view)
 
     @commands.command(name='wordup_set')
     @commands.has_permissions(manage_messages=True)
@@ -543,11 +522,13 @@ class WordUpGame(commands.Cog):
         cleaned_word = self.extract_word(word)
 
         if not cleaned_word:
-            embed = discord.Embed(
-                description="Please provide a valid word",
-                color=0xFF6B6B
+            container = create_error_message(
+                title="Invalid Word",
+                description="Please provide a valid word"
             )
-            await ctx.send(embed=embed)
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         self.last_word = cleaned_word
@@ -555,17 +536,13 @@ class WordUpGame(commands.Cog):
         self.last_player_id = None
         self.save_data()
 
-        embed = discord.Embed(
+        container = create_success_message(
             title="Word Set",
-            description=f"Current word: **{cleaned_word.upper()}**",
-            color=0x00D166
+            description=f"Current word: **{cleaned_word.upper()}**\n**Next Letter:** {cleaned_word[-1].upper()}"
         )
-        embed.add_field(
-            name="Next Letter",
-            value=f"**{cleaned_word[-1].upper()}**",
-            inline=False
-        )
-        await ctx.send(embed=embed)
+        view = LayoutView()
+        view.add_item(container)
+        await ctx.send(view=view)
         logger.info(f"Word-Up word manually set to '{cleaned_word}' by {ctx.author.name}")
 
     @commands.command(name='wordup_clearwarnings')
@@ -576,11 +553,13 @@ class WordUpGame(commands.Cog):
             del self.user_warnings[member.id]
             self.save_data()
 
-        embed = discord.Embed(
-            description=f"Warnings cleared for {member.mention}",
-            color=0x00D166
+        container = create_success_message(
+            title="Warnings Cleared",
+            description=f"Warnings cleared for {member.mention}"
         )
-        await ctx.send(embed=embed)
+        view = LayoutView()
+        view.add_item(container)
+        await ctx.send(view=view)
         logger.info(f"Word-Up warnings cleared for {member.name} by {ctx.author.name}")
 
 
@@ -603,11 +582,14 @@ class WordUpGame(commands.Cog):
                         continue
 
             if not scores:
-                embed = discord.Embed(
+                container = create_info_card(
+                    title="No Scores Yet",
                     description="No Word-Up scores yet. Start playing",
-                    color=0xFF6B6B
+                    color_code="red"
                 )
-                await ctx.send(embed=embed)
+                view = LayoutView()
+                view.add_item(container)
+                await ctx.send(view=view)
                 return
 
             # Sort by points
@@ -644,11 +626,13 @@ class WordUpGame(commands.Cog):
 
         except Exception as e:
             logger.error(f"Error generating Word-Up leaderboard: {e}")
-            embed = discord.Embed(
-                description="Error generating leaderboard",
-                color=0xFF6B6B
+            container = create_error_message(
+                title="Error",
+                description="Error generating leaderboard"
             )
-            await ctx.send(embed=embed)
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
 
 
 async def setup(bot):

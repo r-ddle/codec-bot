@@ -3,6 +3,7 @@ Progression cog - Commands for checking rank, leaderboard, and daily bonuses.
 """
 import discord
 from discord.ext import commands
+from discord.ui import LayoutView
 from datetime import datetime, timedelta
 from typing import Optional
 import asyncio
@@ -15,6 +16,13 @@ from utils.image_gen import generate_rank_card
 from utils.daily_supply_gen import generate_daily_supply_card, generate_promotion_card
 from utils.leaderboard_gen import generate_leaderboard
 from utils.rate_limiter import enforce_rate_limit
+from utils.components_builder import (
+    create_status_container,
+    create_error_message,
+    create_progress_container,
+    create_simple_message,
+    create_success_message
+)
 from config.settings import logger
 
 
@@ -35,20 +43,17 @@ class Progression(commands.Cog):
         member_data = self.bot.member_data.get_member_data(member_id, guild_id)
         next_rank_info = get_next_rank_info(member_data['xp'], member_data['rank'])
 
-        embed = discord.Embed(
-            title=f"{member_data.get('rank_icon', '')} {ctx.author.display_name}",
-            description=f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}",
-            color=0x599cff
-        )
-
-        if ctx.author.avatar:
-            embed.set_thumbnail(url=ctx.author.avatar.url)
-
-        embed.add_field(
-            name="ACTIVITY STATS",
-            value=f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\n```",
-            inline=False
-        )
+        # Build fields for the status display
+        fields = [
+            {
+                "name": "CURRENT STATUS",
+                "value": f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}"
+            },
+            {
+                "name": "ACTIVITY STATS",
+                "value": f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\n```"
+            }
+        ]
 
         if next_rank_info:
             xp_progress = member_data["xp"] - next_rank_info["current_rank_xp"]
@@ -66,15 +71,29 @@ class Progression(commands.Cog):
             if xp_needed > 0:
                 progress_text += f"NEEDED FOR PROMOTION:\nXP: {format_number(xp_needed)}\n"
             else:
-                progress_text += " READY FOR PROMOTION!\n"
+                progress_text += "✓ READY FOR PROMOTION!\n"
 
             progress_text += "```"
 
-            embed.add_field(name="RANK PROGRESS", value=progress_text, inline=False)
+            fields.append({
+                "name": "RANK PROGRESS",
+                "value": progress_text
+            })
         else:
-            embed.add_field(name="MAXIMUM RANK", value="```\nFOXHOUND operative - highest rank achieved!\n```", inline=False)
+            fields.append({
+                "name": "MAXIMUM RANK",
+                "value": "```\n✓ FOXHOUND operative - highest rank achieved!\n```"
+            })
 
-        await ctx.send(embed=embed)
+        container = create_status_container(
+            title=f"{member_data.get('rank_icon', '🎖️')} {ctx.author.display_name}",
+            fields=fields,
+            thumbnail_url=ctx.author.avatar.url if ctx.author.avatar else None
+        )
+
+        view = LayoutView()
+        view.add_item(container)
+        await ctx.send(view=view)
 
     @commands.command(name='rank')
     @enforce_rate_limit('rank')
@@ -84,7 +103,13 @@ class Progression(commands.Cog):
             member = ctx.author
 
         if member.bot:
-            await ctx.send("🤖 Bots don't have ranks.")
+            container = create_error_message(
+                "Cannot check bot ranks",
+                "Bots don't have rank progression."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         member_id = member.id
@@ -141,23 +166,27 @@ class Progression(commands.Cog):
                 await ctx.send(file=file)
 
             except Exception as e:
-                # Fallback to embed if image generation fails
-                embed = discord.Embed(
-                    title=f"{member_data.get('rank_icon', '')} {member.display_name}",
-                    description=f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}",
-                    color=0x599cff
+                # Fallback to component display if image generation fails
+                container = create_status_container(
+                    title=f"{member_data.get('rank_icon', '🎖️')} {member.display_name}",
+                    fields=[
+                        {
+                            "name": "RANK INFO",
+                            "value": f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}"
+                        },
+                        {
+                            "name": "ACTIVITY STATS",
+                            "value": f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\n```"
+                        }
+                    ],
+                    thumbnail_url=member.avatar.url if member.avatar else None,
+                    footer=f"⚠️ Image generation failed: {e}"
                 )
 
-                if member.avatar:
-                    embed.set_thumbnail(url=member.avatar.url)
+                view = LayoutView()
+                view.add_item(container)
+                await ctx.send(view=view)
 
-                embed.add_field(
-                    name="ACTIVITY STATS",
-                    value=f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\n```",
-                    inline=False
-                )
-
-                await ctx.send(f"⚠️ Image generation failed. Showing text version:\n", embed=embed)
                 import traceback
                 print(f"Error generating rank card: {e}")
                 traceback.print_exc()
@@ -190,7 +219,13 @@ class Progression(commands.Cog):
         )
 
         if not leaderboard_data:
-            await ctx.send("❌ No operatives found in database.")
+            container = create_error_message(
+                "No operatives found in database",
+                "There are no members with activity data to display."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         # Show typing indicator while generating
@@ -227,7 +262,14 @@ class Progression(commands.Cog):
                 await ctx.send(file=file)
 
             except Exception as e:
-                await ctx.send(f"❌ Failed to generate leaderboard: {e}")
+                container = create_error_message(
+                    "Failed to generate leaderboard",
+                    f"Error details: {str(e)}"
+                )
+                view = LayoutView()
+                view.add_item(container)
+                await ctx.send(view=view)
+
                 import traceback
                 traceback.print_exc()
 
@@ -266,23 +308,24 @@ class Progression(commands.Cog):
             else:
                 time_str = "unknown"
 
-            embed = discord.Embed(
-                title="Daily Already Claimed",
-                description="You've already claimed your daily bonus today!",
-                color=0xff6b35
+            container = create_status_container(
+                title="⏰ Daily Already Claimed",
+                fields=[
+                    {
+                        "name": "Next Claim",
+                        "value": f"Available in **{time_str}**"
+                    },
+                    {
+                        "name": "Current Stats",
+                        "value": f"```\nXP: {format_number(member_data.get('xp', 0))}\nRank: {member_data.get('rank', 'Rookie')}\nStreak: {member_data.get('daily_streak', 0)} days\n```"
+                    }
+                ],
+                footer="Outer Heaven: Exiled Units"
             )
-            embed.add_field(
-                name="Next Claim",
-                value=f"Available in **{time_str}**",
-                inline=False
-            )
-            embed.add_field(
-                name="Current Stats",
-                value=f"```\nXP: {format_number(member_data.get('xp', 0))}\nRank: {member_data.get('rank', 'Rookie')}\nStreak: {member_data.get('daily_streak', 0)} days\n```",
-                inline=False
-            )
-            embed.set_footer(text="Outer Heaven: Exiled Units")
-            await ctx.send(embed=embed)
+
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         # Success - proceed with normal daily claim logic
@@ -353,24 +396,38 @@ class Progression(commands.Cog):
                     logger.error(f"Error sending promotion announcement: {e}")
 
         except Exception as e:
-            # Fallback to text embed if image fails
-            embed = discord.Embed(
-                title="DAILY SUPPLY DROP",
-                description=f"**+{format_number(xp)} XP** received!",
-                color=0x00ff00
-            )
-            embed.add_field(
-                name="UPDATED STATS",
-                value=f"```\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
-                inline=False
-            )
-            if rank_changed:
-                embed.add_field(name="PROMOTION!", value=f"New rank: **{new_rank}**", inline=False)
-                if role_granted:
-                    embed.add_field(name="ROLE ASSIGNED", value=f"Discord role **{role_granted}** granted!", inline=False)
+            # Fallback to component display if image fails
+            fields = [
+                {
+                    "name": "REWARD",
+                    "value": f"**+{format_number(xp)} XP** received!"
+                },
+                {
+                    "name": "UPDATED STATS",
+                    "value": f"```\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```"
+                }
+            ]
 
-            embed.set_footer(text=f"Error generating image: {e}")
-            await ctx.send(embed=embed)
+            if rank_changed:
+                fields.append({
+                    "name": "🎖️ PROMOTION!",
+                    "value": f"New rank: **{new_rank}**"
+                })
+                if role_granted:
+                    fields.append({
+                        "name": "ROLE ASSIGNED",
+                        "value": f"Discord role **{role_granted}** granted!"
+                    })
+
+            container = create_status_container(
+                title="💰 DAILY SUPPLY DROP",
+                fields=fields,
+                footer=f"⚠️ Image generation failed: {e}"
+            )
+
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
 
         # Schedule a background save; avoid forcing Neon sync here
         self.bot.member_data.schedule_save()

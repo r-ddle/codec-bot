@@ -1,71 +1,10 @@
 {
   "active": true,
-  "event_title": "Server Event",
-  "message_goal": 15000,
-  "start_date": "2025-10-09T00:46:58.094233",
-  "end_date": "2025-10-12T23:59:59.094233",
-  "total_messages": 1060,
-  "participants": {
-    "1040597411116089424": {
-      "username": "riddle",
-      "message_count": 297
-    },
-    "1354708230575493241": {
-      "username": "evan_streamz",
-      "message_count": 104
-    },
-    "1081692525305286697": {
-      "username": "NordicGaming | PVT",
-      "message_count": 1
-    },
-    "1049417650587054142": {
-      "username": "I drink | LT",
-      "message_count": 29
-    },
-    "526267464095367179": {
-      "username": "˗ˏˋ ★ THE BOSS ★ ˎˊ˗ |  141.80",
-      "message_count": 20
-    },
-    "1081564877904171028": {
-      "username": "∆ ahab_in_rehab ∆",
-      "message_count": 101
-    },
-    "1311383285569687603": {
-      "username": "qm.19",
-      "message_count": 10
-    },
-    "1065068203480465478": {
-      "username": "☆ OCELOT ☆ | PVT",
-      "message_count": 6
-    },
-    "1119157054125395988": {
-      "username": "Quiet",
-      "message_count": 150
-    },
-    "820175909793431612": {
-      "username": "𝚂𝙾𝙻𝙸𝙳 𝚂𝙽Δ𝙺𝙴|𝟷𝟺𝟶.𝟼𝟼",
-      "message_count": 21
-    },
-    "690571165567025272": {
-      "username": "MysteriousBoyz1",
-      "message_count": 132
-    },
-    "1281039591956287581": {
-      "username": "Greed",
-      "message_count": 2
-    },
-    "1304023399823048725": {
-      "username": "Viper snake",
-      "message_count": 34
-    },
-    "1206261281405927469": {
-      "username": "Bigjan",
-      "message_count": 1
-    },
-    "1049224900600135731": {
-      "username": "kaz",
-      "message_count": 117
-    }
-  },
-  "last_progress_update": "2025-10-09T10:58:23.408804"
+  "event_title": "Weekly Community Challenge",
+  "message_goal": 1500,
+  "start_date": "2025-10-27T15:12:08.630320",
+  "end_date": "2025-11-02T23:59:59.630320",
+  "total_messages": 0,
+  "participants": {},
+  "last_progress_update": "2025-10-27T15:12:08.630320"
 }

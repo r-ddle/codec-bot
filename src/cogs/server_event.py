@@ -3,6 +3,7 @@ Server Event Cog - Manages weekly community events
 """
 import discord
 from discord.ext import commands, tasks
+from discord.ui import LayoutView
 from datetime import datetime, timedelta
 import asyncio
 from io import BytesIO
@@ -17,6 +18,7 @@ from utils.server_event_gen import (
 from config.settings import logger
 from utils.rate_limiter import enforce_rate_limit
 from config.bot_settings import EVENT_ROLE_ID, EVENT_CHANNEL_ID
+from utils.components_builder import create_stats_container, create_error_message, create_success_message, create_info_card
 
 
 class ServerEvent(commands.Cog):
@@ -252,7 +254,14 @@ class ServerEvent(commands.Cog):
         info = self.event_manager.get_event_info()
 
         if not info["active"]:
-            await ctx.send("No active server event. Admins can start one with `!eventstart`")
+            container = create_info_card(
+                title="No Active Event",
+                description="No active server event. Admins can start one with `!eventstart`",
+                color_code="gray"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         percentage = (info["current"] / info["goal"] * 100) if info["goal"] > 0 else 0
@@ -263,42 +272,33 @@ class ServerEvent(commands.Cog):
         days = time_left.days
         hours = time_left.seconds // 3600
 
-        embed = discord.Embed(
-            title=f"🎯 {info['title']}",
-            description="Weekly Community Challenge",
-            color=0x00ff00
-        )
+        # Prepare stats for the component
+        stats = {
+            "Progress": f"{info['current']:,} / {info['goal']:,} ({percentage:.1f}%)",
+            "Time Left": f"{days}d {hours}h",
+            "Participants": f"{info['participants']} soldiers"
+        }
 
-        embed.add_field(
-            name="Progress",
-            value=f"{info['current']:,} / {info['goal']:,} ({percentage:.1f}%)",
-            inline=True
-        )
-
-        embed.add_field(
-            name="Time Left",
-            value=f"{days}d {hours}h",
-            inline=True
-        )
-
-        embed.add_field(
-            name="Participants",
-            value=f"{info['participants']} soldiers",
-            inline=True
-        )
-
-        # Show top 3
+        # Show top 3 contributors
         leaderboard = self.event_manager.get_leaderboard(3)
         if leaderboard:
             lb_text = "\n".join([
-                f"{'🥇🥈🥉'[i]} {name}: {count:,}"
+                f"{['1st', '2nd', '3rd'][i]} {name}: {count:,}"
                 for i, (name, count) in enumerate(leaderboard)
             ])
-            embed.add_field(name="Top Contributors", value=lb_text, inline=False)
+            stats["Top Contributors"] = lb_text
 
-        embed.set_footer(text="Keep chatting to help reach the goal!")
+        container = create_stats_container(
+            title=f"{info['title']}",
+            description="Weekly Community Challenge",
+            stats=stats,
+            footer="Keep chatting to help reach the goal!",
+            color_code="green"
+        )
 
-        await ctx.send(embed=embed)
+        view = LayoutView()
+        view.add_item(container)
+        await ctx.send(view=view)
 
     @commands.command(name='eventstart')
     @commands.has_permissions(administrator=True)
@@ -318,7 +318,13 @@ class ServerEvent(commands.Cog):
             !eventstart 20000 "Holiday Special Event" - Custom goal
         """
         if self.event_manager.is_event_active():
-            await ctx.send("An event is already active! Use `!eventend` first.")
+            container = create_error_message(
+                title="Event Already Active",
+                description="An event is already active! Use `!eventend` first."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         try:
@@ -330,27 +336,67 @@ class ServerEvent(commands.Cog):
 
             goal_text = f"{event_info['goal']:,}"
             goal_note = " (dynamically calculated)" if goal is None else ""
-            await ctx.send(f"✅ Event **{title}** started with goal: {goal_text} messages{goal_note}!")
+
+            container = create_success_message(
+                title="Event Started",
+                description=f"✅ Event **{title}** started with goal: {goal_text} messages{goal_note}!"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             await self._announce_event_start(event_info)
 
         except Exception as e:
-            await ctx.send(f"Error starting event: {e}")
+            container = create_error_message(
+                title="Error Starting Event",
+                description=f"Error starting event: {e}"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
 
     @commands.command(name='eventend')
     @commands.has_permissions(administrator=True)
     async def end_event_command(self, ctx):
         """End the current event and distribute rewards (Admin only)"""
         if not self.event_manager.is_event_active():
-            await ctx.send("No active event to end.")
+            container = create_error_message(
+                title="No Active Event",
+                description="No active event to end."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         try:
-            await ctx.send("Ending event and distributing rewards...")
+            container = create_info_card(
+                title="Ending Event",
+                description="Ending event and distributing rewards...",
+                color_code="blue"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+
             await self._end_event_and_distribute_rewards()
-            await ctx.send("Event ended successfully!")
+
+            success_container = create_success_message(
+                title="Event Ended",
+                description="Event ended successfully!"
+            )
+            success_view = LayoutView()
+            success_view.add_item(success_container)
+            await ctx.send(view=success_view)
 
         except Exception as e:
-            await ctx.send(f"Error ending event: {e}")
+            container = create_error_message(
+                title="Error Ending Event",
+                description=f"Error ending event: {e}"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
 
     @commands.command(name='eventrestart')
     @commands.has_permissions(administrator=True)
@@ -379,14 +425,26 @@ class ServerEvent(commands.Cog):
                 await self._announce_event_start(event_info)
 
         except Exception as e:
-            await ctx.send(f"Error restarting event: {e}")
+            container = create_error_message(
+                title="Error Restarting Event",
+                description=f"Error restarting event: {e}"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
 
     @commands.command(name='eventprogress')
     @commands.has_permissions(administrator=True)
     async def force_progress_update(self, ctx):
         """Force send a progress update image (Admin only)"""
         if not self.event_manager.is_event_active():
-            await ctx.send("No active event.")
+            container = create_error_message(
+                title="No Active Event",
+                description="No active event."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             return
 
         try:
@@ -395,7 +453,13 @@ class ServerEvent(commands.Cog):
             # await ctx.send("✅ Progress update sent!")
 
         except Exception as e:
-            await ctx.send(f"Error: {e}")
+            container = create_error_message(
+                title="Error",
+                description=f"Error: {e}"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
 
     @commands.command(name='eventinfo')
     @enforce_rate_limit('leaderboard')

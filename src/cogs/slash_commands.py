@@ -4,6 +4,7 @@ Slash Commands cog - Application command implementations.
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord.ui import LayoutView
 from io import BytesIO
 import asyncio
 
@@ -14,6 +15,12 @@ from utils.server_event_gen import generate_event_progress
 from utils.rank_system import get_rank_data_by_name
 from utils.role_manager import update_member_roles
 from utils.rate_limiter import enforce_rate_limit
+from utils.components_builder import (
+    create_status_container,
+    create_error_message,
+    create_simple_message,
+    create_success_message
+)
 from config.settings import logger
 from typing import Optional
 
@@ -30,12 +37,19 @@ class SlashCommands(commands.Cog):
     @app_commands.command(name="ping", description="Test connection")
     async def ping(self, interaction: discord.Interaction):
         """Test connection slash command."""
-        embed = discord.Embed(
-            title=" CODEC CONNECTION TEST",
-            description=f"**Latency:** {round(self.bot.latency * 1000)}ms\n**Status:**  OPERATIONAL\n**XP System:**  ACTIVE",
-            color=0x599cff
+        container = create_status_container(
+            title="📡 CODEC CONNECTION TEST",
+            fields=[
+                {
+                    "name": "CONNECTION STATUS",
+                    "value": f"```\nLatency: {round(self.bot.latency * 1000)}ms\nStatus: ✓ OPERATIONAL\nXP System: ✓ ACTIVE\n```"
+                }
+            ]
         )
-        await interaction.response.send_message(embed=embed)
+
+        view = LayoutView()
+        view.add_item(container)
+        await interaction.response.send_message(view=view)
 
     @app_commands.command(name="status", description="Check your MGS rank and XP status")
     async def status_slash(self, interaction: discord.Interaction):
@@ -45,24 +59,6 @@ class SlashCommands(commands.Cog):
         guild_id = interaction.guild.id
         member_data = self.bot.member_data.get_member_data(member_id, guild_id)
 
-        embed = discord.Embed(
-            title=f"{member_data.get('rank_icon', '')} OPERATIVE STATUS",
-            description=f"**{interaction.user.display_name}**",
-            color=0x599cff
-        )
-
-        embed.add_field(
-            name="CURRENT STATS",
-            value=f"```\nRank: {member_data['rank']}\nXP: {format_number(member_data['xp'])}\n```",
-            inline=True
-        )
-
-        embed.add_field(
-            name="ACTIVITY",
-            value=f"```\nMessages: {format_number(member_data['messages_sent'])}\n```",
-            inline=True
-        )
-
         # Show current Discord role if any
         rank_roles = [rank["role_name"] for rank in MGS_RANKS if rank["role_name"]]
         current_role = None
@@ -71,16 +67,32 @@ class SlashCommands(commands.Cog):
                 current_role = role.name
                 break
 
-        embed.add_field(
-            name="DISCORD ROLE",
-            value=f"```\n{current_role if current_role else 'None (Rookie)'}\n```",
-            inline=False
+        container = create_status_container(
+            title=f"{member_data.get('rank_icon', '🎖️')} OPERATIVE STATUS",
+            fields=[
+                {
+                    "name": "OPERATIVE",
+                    "value": f"**{interaction.user.display_name}**"
+                },
+                {
+                    "name": "CURRENT STATS",
+                    "value": f"```\nRank: {member_data['rank']}\nXP: {format_number(member_data['xp'])}\n```"
+                },
+                {
+                    "name": "ACTIVITY",
+                    "value": f"```\nMessages: {format_number(member_data['messages_sent'])}\n```"
+                },
+                {
+                    "name": "DISCORD ROLE",
+                    "value": f"```\n{current_role if current_role else 'None (Rookie)'}\n```"
+                }
+            ],
+            thumbnail_url=interaction.user.avatar.url if interaction.user.avatar else None
         )
 
-        if interaction.user.avatar:
-            embed.set_thumbnail(url=interaction.user.avatar.url)
-
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = LayoutView()
+        view.add_item(container)
+        await interaction.response.send_message(view=view, ephemeral=True)
 
     @app_commands.command(name="rank", description="View your or another member's rank card")
     @app_commands.describe(user="The member to check (optional)")
@@ -115,25 +127,32 @@ class SlashCommands(commands.Cog):
             else:
                 xp_progress = "MAX RANK"
 
-            embed = discord.Embed(
-                title=f"🎖️ {target.display_name}",
-                description=f"**Rank:** {current_rank_name}\n**XP:** {format_number(member_data.get('xp', 0))}",
-                color=0x599cff
-            )
+            fields = [
+                {
+                    "name": "RANK INFO",
+                    "value": f"**Rank:** {current_rank_name}\n**XP:** {format_number(member_data.get('xp', 0))}"
+                },
+                {
+                    "name": "MESSAGES SENT",
+                    "value": format_number(member_data.get('messages_sent', 0))
+                }
+            ]
 
             if next_rank:
-                embed.add_field(
-                    name=f"Progress to {next_rank.get('name', 'Unknown')}",
-                    value=xp_progress,
-                    inline=False
-                )
+                fields.insert(1, {
+                    "name": f"Progress to {next_rank.get('name', 'Unknown')}",
+                    "value": xp_progress
+                })
 
-            embed.add_field(name="Messages Sent", value=format_number(member_data.get('messages_sent', 0)), inline=True)
+            container = create_status_container(
+                title=f"🎖️ {target.display_name}",
+                fields=fields,
+                thumbnail_url=target.avatar.url if target.avatar else None
+            )
 
-            if target.avatar:
-                embed.set_thumbnail(url=target.avatar.url)
-
-            await interaction.response.send_message(embed=embed)
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.response.send_message(view=view)
 
         except Exception as e:
             # Log the full error for debugging
@@ -142,10 +161,13 @@ class SlashCommands(commands.Cog):
             print(f"Error in rank_slash: {error_details}")
 
             # Send user-friendly error message
-            await interaction.response.send_message(
-                f"❌ An error occurred while fetching rank data: {str(e)}\nPlease contact an administrator.",
-                ephemeral=True
+            container = create_error_message(
+                "Error fetching rank data",
+                f"{str(e)}\nPlease contact an administrator."
             )
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.response.send_message(view=view, ephemeral=True)
 
     @app_commands.command(name="daily", description="Claim your daily bonus of XP")
     async def daily_slash(self, interaction: discord.Interaction):
@@ -184,23 +206,24 @@ class SlashCommands(commands.Cog):
             else:
                 time_str = "unknown"
 
-            embed = discord.Embed(
+            container = create_status_container(
                 title="⏰ DAILY ALREADY CLAIMED",
-                description="You've already claimed your daily bonus today!",
-                color=0xff6b35
+                fields=[
+                    {
+                        "name": "NEXT CLAIM",
+                        "value": f"Available in **{time_str}**"
+                    },
+                    {
+                        "name": "CURRENT STATS",
+                        "value": f"```\nXP: {member_data.get('xp', 0):,}\nRank: {member_data.get('rank', 'Rookie')}\nStreak: {member_data.get('daily_streak', 0)} days\n```"
+                    }
+                ],
+                footer="Outer Heaven: Exiled Units"
             )
-            embed.add_field(
-                name="NEXT CLAIM",
-                value=f"Available in **{time_str}**",
-                inline=False
-            )
-            embed.add_field(
-                name="CURRENT STATS",
-                value=f"```\nXP: {member_data.get('xp', 0):,}\nRank: {member_data.get('rank', 'Rookie')}\nStreak: {member_data.get('daily_streak', 0)} days\n```",
-                inline=False
-            )
-            embed.set_footer(text="Outer Heaven: Exiled Units")
-            await interaction.followup.send(embed=embed)
+
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.followup.send(view=view)
             return
 
         # Success - proceed with normal daily claim logic
@@ -271,24 +294,38 @@ class SlashCommands(commands.Cog):
                         logger.error(f"Error sending promotion announcement: {e}")
 
             except Exception as e:
-                # Fallback to text embed if image fails
-                embed = discord.Embed(
-                    title="� DAILY SUPPLY DROP",
-                    description=f"**+{xp} XP** received!",
-                    color=0x00ff00
-                )
-                embed.add_field(
-                    name="UPDATED STATS",
-                    value=f"```\nXP: {member_data['xp']:,}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```",
-                    inline=False
-                )
-                if rank_changed:
-                    embed.add_field(name="🎖️ PROMOTION!", value=f"New rank: **{new_rank}**", inline=False)
-                    if role_granted:
-                        embed.add_field(name="✓ ROLE ASSIGNED", value=f"Discord role **{role_granted}** granted!", inline=False)
+                # Fallback to component display if image fails
+                fields = [
+                    {
+                        "name": "REWARD",
+                        "value": f"**+{xp} XP** received!"
+                    },
+                    {
+                        "name": "UPDATED STATS",
+                        "value": f"```\nXP: {member_data['xp']:,}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```"
+                    }
+                ]
 
-                embed.set_footer(text=f"Error generating image: {e}")
-                await interaction.followup.send(embed=embed)
+                if rank_changed:
+                    fields.append({
+                        "name": "🎖️ PROMOTION!",
+                        "value": f"New rank: **{new_rank}**"
+                    })
+                    if role_granted:
+                        fields.append({
+                            "name": "✓ ROLE ASSIGNED",
+                            "value": f"Discord role **{role_granted}** granted!"
+                        })
+
+                container = create_status_container(
+                    title="💰 DAILY SUPPLY DROP",
+                    fields=fields,
+                    footer=f"⚠️ Image generation failed: {e}"
+                )
+
+                view = LayoutView()
+                view.add_item(container)
+                await interaction.followup.send(view=view)
 
     @app_commands.command(name="leaderboard", description="View the server leaderboard")
     @app_commands.describe(
@@ -319,11 +356,14 @@ class SlashCommands(commands.Cog):
                             scores.append((member.display_name, word_up_points))
 
                 if not scores:
-                    embed = discord.Embed(
-                        description="No Word-Up scores yet. Start playing",
-                        color=0xFF6B6B
+                    container = create_simple_message(
+                        "No Word-Up Scores",
+                        "No Word-Up scores yet. Start playing to see your name on the leaderboard!",
+                        "🎮"
                     )
-                    await interaction.followup.send(embed=embed)
+                    view = LayoutView()
+                    view.add_item(container)
+                    await interaction.followup.send(view=view)
                     return
 
                 # Sort by points
@@ -360,11 +400,13 @@ class SlashCommands(commands.Cog):
 
             except Exception as e:
                 logger.error(f"Error generating Word-Up leaderboard: {e}")
-                embed = discord.Embed(
-                    description="Error generating leaderboard",
-                    color=0xFF6B6B
+                container = create_error_message(
+                    "Error generating leaderboard",
+                    f"Failed to create Word-Up leaderboard: {str(e)}"
                 )
-                await interaction.followup.send(embed=embed)
+                view = LayoutView()
+                view.add_item(container)
+                await interaction.followup.send(view=view)
                 return
 
         # Sort based on type
@@ -391,40 +433,82 @@ class SlashCommands(commands.Cog):
             "messages": "Messages Sent"
         }
 
-        embed = discord.Embed(
+        container = create_status_container(
             title=f"📊 {board_names[board_type]} Leaderboard",
-            description=leaderboard_text or "No data available",
-            color=0xffd700
+            fields=[
+                {
+                    "name": "TOP 10",
+                    "value": leaderboard_text or "No data available"
+                }
+            ],
+            footer=f"Server: {interaction.guild.name}"
         )
-        embed.set_footer(text=f"Server: {interaction.guild.name}")
 
-        await interaction.followup.send(embed=embed)
+        view = LayoutView()
+        view.add_item(container)
+        await interaction.followup.send(view=view)
         @self.event_group.command(name="status", description="Check current event status")
         async def event_status(self, interaction: discord.Interaction):
+            from utils.components_builder import create_error_message, create_info_card
+            from discord.ui import LayoutView
+
             if not self.bot.get_cog('ServerEvent'):
-                await interaction.response.send_message("Event system not loaded.", ephemeral=True)
+                container = create_error_message(
+                    "Event System Unavailable",
+                    "The event system is not currently loaded. Please contact an administrator if this persists."
+                )
+                view = LayoutView()
+                view.add_item(container)
+                await interaction.response.send_message(view=view, ephemeral=True)
                 return
 
             event_cog = self.bot.get_cog('ServerEvent')
             info = event_cog.event_manager.get_event_info()
 
             if not info.get("active"):
-                await interaction.response.send_message("❌ No active server event.", ephemeral=True)
+                container = create_info_card(
+                    "No Active Event",
+                    "There is currently no active server event. Check back later or contact admins to start an event!"
+                )
+                view = LayoutView()
+                view.add_item(container)
+                await interaction.response.send_message(view=view, ephemeral=True)
                 return
 
             percentage = (info.get("current", 0) / info.get("goal", 1) * 100) if info.get("goal", 0) > 0 else 0
-            await interaction.response.send_message(f"Event: {info.get('title')} - {info.get('current',0):,}/{info.get('goal',0):,} ({percentage:.1f}%)")
+            container = create_info_card(
+                "Event Status",
+                f"**{info.get('title')}**\n\nProgress: {info.get('current',0):,}/{info.get('goal',0):,} ({percentage:.1f}%)"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.response.send_message(view=view)
 
         @self.event_group.command(name="info", description="Show event banner and leaderboard")
         @enforce_rate_limit('leaderboard')
         async def event_info(self, interaction: discord.Interaction):
+            from utils.components_builder import create_error_message
+            from discord.ui import LayoutView
+
             if not self.bot.get_cog('ServerEvent'):
-                await interaction.response.send_message("Event system not loaded.", ephemeral=True)
+                container = create_error_message(
+                    "Event System Unavailable",
+                    "The event system is not currently loaded. Please contact an administrator if this persists."
+                )
+                view = LayoutView()
+                view.add_item(container)
+                await interaction.response.send_message(view=view, ephemeral=True)
                 return
 
             event_cog = self.bot.get_cog('ServerEvent')
             if not event_cog.event_manager.is_event_active():
-                await interaction.response.send_message("❌ No active event.", ephemeral=True)
+                container = create_error_message(
+                    "No Active Event",
+                    "There is no active event at this time."
+                )
+                view = LayoutView()
+                view.add_item(container)
+                await interaction.response.send_message(view=view, ephemeral=True)
                 return
 
             await interaction.response.defer()
@@ -491,37 +575,31 @@ class SlashCommands(commands.Cog):
         from datetime import date
 
         current_date = date.today()
-        embed = discord.Embed(
-            title="🌙 MONTHLY XP RESET STATUS",
-            color=0x599cff
-        )
 
-        embed.add_field(
-            name="Current Date",
-            value=current_date.strftime("%B %d, %Y"),
-            inline=True
-        )
+        fields = [
+            {
+                "name": "Current Date",
+                "value": current_date.strftime("%B %d, %Y")
+            }
+        ]
 
         if self.bot.last_monthly_reset:
-            embed.add_field(
-                name="Last Reset",
-                value=self.bot.last_monthly_reset.strftime("%B %d, %Y"),
-                inline=True
-            )
+            fields.append({
+                "name": "Last Reset",
+                "value": self.bot.last_monthly_reset.strftime("%B %d, %Y")
+            })
 
             # Calculate days since last reset
             days_since = (current_date - self.bot.last_monthly_reset).days
-            embed.add_field(
-                name="Days Since Reset",
-                value=f"{days_since} days",
-                inline=True
-            )
+            fields.append({
+                "name": "Days Since Reset",
+                "value": f"{days_since} days"
+            })
         else:
-            embed.add_field(
-                name="Last Reset",
-                value="Never",
-                inline=True
-            )
+            fields.append({
+                "name": "Last Reset",
+                "value": "Never"
+            })
 
         # Calculate next reset date
         if current_date.day == 1:
@@ -535,21 +613,25 @@ class SlashCommands(commands.Cog):
 
         days_until_reset = (next_reset - current_date).days
 
-        embed.add_field(
-            name="Next Reset",
-            value=next_reset.strftime("%B %d, %Y"),
-            inline=True
+        fields.append({
+            "name": "Next Reset",
+            "value": next_reset.strftime("%B %d, %Y")
+        })
+
+        fields.append({
+            "name": "Days Until Reset",
+            "value": f"{days_until_reset} days"
+        })
+
+        container = create_status_container(
+            title="Monthly XP Reset Status",
+            fields=fields,
+            footer="XP resets monthly while ranks and multipliers are preserved"
         )
 
-        embed.add_field(
-            name="Days Until Reset",
-            value=f"{days_until_reset} days",
-            inline=True
-        )
-
-        embed.set_footer(text="XP resets monthly while ranks and multipliers are preserved")
-
-        await interaction.response.send_message(embed=embed)
+        view = LayoutView()
+        view.add_item(container)
+        await interaction.response.send_message(view=view)
 
     # Event group commands
     @event_group.command(name="status", description="Check current event status")
@@ -602,18 +684,32 @@ class SlashCommands(commands.Cog):
             buffer.seek(0)
             file = discord.File(buffer, 'event_progress.png')
 
-            embed = discord.Embed(
-                title="🎯 SERVER EVENT PROGRESS",
-                description=f"**{event_cog.event_manager.get_event_info().get('title')}**\n"
-                           f"Progress: {progress_data.get('current',0):,}/{progress_data.get('goal',0):,} messages",
-                color=0x599cff
+            container = create_status_container(
+                title="Server Event Progress",
+                fields=[
+                    {
+                        "name": "EVENT",
+                        "value": f"**{event_cog.event_manager.get_event_info().get('title')}**"
+                    },
+                    {
+                        "name": "PROGRESS",
+                        "value": f"{progress_data.get('current',0):,} / {progress_data.get('goal',0):,} messages"
+                    }
+                ]
             )
-            embed.set_image(url="attachment://event_progress.png")
 
-            await interaction.followup.send(embed=embed, file=file)
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.followup.send(view=view, file=file)
 
         except Exception as e:
-            await interaction.followup.send(f"❌ Error generating event info: {e}")
+            container = create_error_message(
+                "Error generating event info",
+                str(e)
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.followup.send(view=view)
 
     @event_group.command(name="start", description="Start an event with dynamic goal (Admin only)")
     @app_commands.checks.has_permissions(administrator=True)

@@ -113,12 +113,33 @@ class ReactionEvents(commands.Cog):
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
         """Handle command errors."""
+        from utils.components_builder import create_error_message
+        from discord.ui import LayoutView
+
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send(" Insufficient security clearance!")
+            container = create_error_message(
+                "Permission Denied",
+                "Insufficient security clearance! You don't have permission to use this command."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
         elif isinstance(error, commands.CommandNotFound):
-            await ctx.send(" Unknown codec frequency")
+            container = create_error_message(
+                "Unknown Command",
+                f"Unknown codec frequency. Command `{ctx.invoked_with}` not recognized. Type `!info` for available commands."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
         else:
-            await ctx.send(" Operation failed.")
+            container = create_error_message(
+                "Operation Failed",
+                "An error occurred. The command could not be completed. Please try again."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
             from config.settings import logger
             logger.error(f"Command error: {error}")
 

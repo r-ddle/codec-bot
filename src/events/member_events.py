@@ -3,6 +3,7 @@ Member events - Handlers for member join and ready events.
 """
 import discord
 from discord.ext import commands
+from discord.ui import LayoutView, Container, Section, TextDisplay, Thumbnail
 from datetime import datetime, timezone
 
 from config.settings import WELCOME_CHANNEL_ID, FAQ_CHANNEL_ID, RULES_CHANNEL_ID, logger
@@ -87,18 +88,27 @@ class MemberEvents(commands.Cog):
             faq_link = f"<#{FAQ_CHANNEL_ID}>" if FAQ_CHANNEL_ID else "#faq"
             rules_link = f"<#{RULES_CHANNEL_ID}>" if RULES_CHANNEL_ID else "#rules"
 
-            embed = discord.Embed(
-                title="Welcome to Outer Heaven!",
-                description=f"**{member.display_name}**, welcome to our community!\n\nPlease check out our {faq_link} and {rules_link} for important information.",
-                color=0x5865F2
+            # Create welcome container with Components v2
+            container = Container()
+            container.image_url = "https://cdn.discordapp.com/attachments/1398689075049009182/1427552150296461312/Welcome_to_Outer_Heaven.gif?ex=68ef470b&is=68edf58b&hm=6a74287498217050c87037ef233c984bfc65685d90ac2b05aa030ebfcd9fcf5e&"
+
+            # Add thumbnail
+            thumbnail = Thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+
+            # Create welcome section
+            section = Section()
+            welcome_text = TextDisplay(
+                content=f"# Welcome to Outer Heaven!\n**{member.display_name}**, welcome to our community!\n\nPlease check out our {faq_link} and {rules_link} for important information."
             )
+            section.add_item(welcome_text)
+            section.add_item(thumbnail)
 
-            # Add welcome GIF - replace with your specific GIF URL
-            embed.set_image(url="https://cdn.discordapp.com/attachments/1398689075049009182/1427552150296461312/Welcome_to_Outer_Heaven.gif?ex=68ef470b&is=68edf58b&hm=6a74287498217050c87037ef233c984bfc65685d90ac2b05aa030ebfcd9fcf5e&")
+            container.add_item(section)
 
-            embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+            view = LayoutView()
+            view.add_item(container)
 
-            await welcome_channel.send(embed=embed)
+            await welcome_channel.send(view=view)
             logger.info(f"Welcome sent to #{welcome_channel.name} for {member.name}")
 
             await self.bot.member_data.save_data_async()

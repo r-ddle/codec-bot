@@ -3,6 +3,7 @@ Core bot instance and task loops for the MGS Discord Bot.
 """
 import discord
 from discord.ext import tasks, commands
+from discord.ui import LayoutView
 import random
 import re
 import time
@@ -13,6 +14,7 @@ from config.constants import MGS_QUOTES, ACTIVITY_REWARDS
 from database.member_data import MemberData
 from database.neon_db import NeonDatabase
 from database.extensions import DatabaseExtensions
+from utils.components_builder import create_info_card
 
 
 class MGSBot(commands.Bot):
@@ -202,16 +204,18 @@ class MGSBot(commands.Bot):
                 # Try to find a general channel to announce
                 general = discord.utils.get(guild.text_channels, name='general')
                 if general:
-                    embed = discord.Embed(
+                    container = create_info_card(
                         title="🌙 MONTHLY XP RESET",
                         description=f"**{current_date.strftime('%B %Y')}** XP reset completed!\n\n"
                                   f"• All XP has been reset to 0\n"
                                   f"• Word-Up points reset to 0\n"
                                   f"• Ranks and multipliers are preserved\n"
                                   f"• New monthly competition begins now!",
-                        color=0x599cff
+                        footer="Higher ranks = better multipliers for the new month!",
+                        color_code="blue"
                     )
-                    embed.set_footer(text="Higher ranks = better multipliers for the new month!")
-                    await general.send(embed=embed)
+                    view = LayoutView()
+                    view.add_item(container)
+                    await general.send(view=view)
             except Exception as e:
                 logger.error(f"Failed to announce monthly reset in guild {guild.id}: {e}")
