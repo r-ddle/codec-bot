@@ -1,10 +1,35 @@
 {
   "active": true,
-  "event_title": "Weekly Community Challenge",
+  "event_title": "Reaction Wave",
+  "event_type": "reaction",
   "message_goal": 1500,
-  "start_date": "2025-10-27T15:12:08.630320",
-  "end_date": "2025-11-02T23:59:59.630320",
-  "total_messages": 0,
-  "participants": {},
-  "last_progress_update": "2025-10-27T15:12:08.630320"
+  "start_date": "2025-10-27T17:15:35.944481",
+  "end_date": "2025-11-26T23:59:59.944481",
+  "total_messages": 10,
+  "participants": {
+    "1040597411116089424": {
+      "username": "riddle",
+      "message_count": 8
+    },
+    "1040987719779745832": {
+      "username": "eggbuffet",
+      "message_count": 1
+    },
+    "1311383285569687603": {
+      "username": "qm.19",
+      "message_count": 1
+    }
+  },
+  "last_progress_update": "2025-10-27T17:15:35.944481",
+  "participation_history": {
+    "1040597411116089424": [
+      "Reaction Wave"
+    ],
+    "1040987719779745832": [
+      "Reaction Wave"
+    ],
+    "1311383285569687603": [
+      "Reaction Wave"
+    ]
+  }
 }

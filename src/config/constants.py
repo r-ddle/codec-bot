@@ -75,6 +75,9 @@ DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "reactions_received": 0,
     "last_daily_claim": None,
     "daily_streak": 0,
+    "last_activity_date": None,  # Track last day user was active
+    "current_streak": 0,  # Current consecutive days active
+    "longest_streak": 0,  # Best streak ever achieved
     "last_message_time": 0,
     "join_date": None,
     "bio": "",
@@ -94,6 +97,16 @@ RANK_XP_MULTIPLIERS = {
     "Major": 1.6,
     "Colonel": 1.7,
     "FOXHOUND": 2.0
+}
+
+# Streak XP bonuses (bonus XP per message based on streak days)
+STREAK_XP_BONUSES = {
+    3: 2,   # 3 day streak: +2 XP per message
+    7: 5,   # 7 day streak: +5 XP per message
+    14: 8,  # 14 day streak: +8 XP per message
+    30: 15, # 30 day streak: +15 XP per message
+    60: 25, # 60 day streak: +25 XP per message
+    90: 40  # 90+ day streak: +40 XP per message
 }
 
 # Activity rewards

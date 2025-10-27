@@ -105,6 +105,7 @@ class WordUpGame(commands.Cog):
     def extract_word(self, content: str) -> str:
         """
         Extract the first word from message content.
+        Only accepts ASCII English letters to prevent Unicode bypasses.
 
         Args:
             content: Message content
@@ -120,11 +121,53 @@ class WordUpGame(commands.Cog):
         cleaned = re.sub(r'<a?:\w+:\d+>', '', cleaned)  # Remove custom emojis
         cleaned = cleaned.strip()
 
-        # Extract first word (letters only)
+        # Extract first word (ASCII English letters only)
+        # This prevents Unicode homoglyphs and Cyrillic characters
         match = re.match(r'^([a-zA-Z]+)', cleaned)
         if match:
-            return match.group(1).lower()
+            word = match.group(1).lower()
+            # Double-check: ensure all characters are ASCII English letters
+            if all(ord(c) < 128 and c.isalpha() for c in word):
+                return word
         return ""
+
+    def is_valid_message_format(self, message: discord.Message) -> tuple[bool, str]:
+        """
+        Check if message follows allowed format: (word) or GIF only.
+
+        Args:
+            message: Discord message object
+
+        Returns:
+            Tuple of (is_valid, word_or_reason)
+        """
+        content = message.content.strip()
+
+        # Check if it's a GIF attachment
+        has_gif = any(
+            attachment.content_type and 'gif' in attachment.content_type.lower()
+            for attachment in message.attachments
+        )
+
+        # Check if content matches (word) pattern
+        parenthesis_match = re.match(r'^\(([a-zA-Z]+)\)$', content)
+
+        # Allow GIF-only messages
+        if has_gif and not content:
+            return (True, "gif")
+
+        # Allow (word) format
+        if parenthesis_match:
+            word = parenthesis_match.group(1).lower()
+            # Verify ASCII English letters only
+            if all(ord(c) < 128 and c.isalpha() for c in word):
+                return (True, word)
+
+        # Check if they tried to send a word without parentheses
+        if content and not parenthesis_match:
+            return (False, "messages must be in format (word) or GIF only")
+
+        return (False, "invalid message format")
 
     def detect_gibberish(self, word: str) -> bool:
         """
@@ -307,39 +350,54 @@ class WordUpGame(commands.Cog):
         if message.channel.id != WORD_UP_CHANNEL_ID:
             return
 
-        # Extract word from message
-        word = self.extract_word(message.content)
+        # Validate message format first
+        is_valid_format, word_or_reason = self.is_valid_message_format(message)
 
-        # If no word found, it might be just a GIF/image - that's allowed
-        if not word:
-            return
-
-        # Detect invisible characters
-        if self.detect_invisible_chars(message.content):
+        if not is_valid_format:
             await message.delete()
             container = create_error_message(
-                title="Invalid Input",
-                description="Invalid characters detected"
+                title="invalid format",
+                description=f"{message.author.mention} {word_or_reason}\n\nallowed formats:\n• (word) - word in parentheses\n• gif attachments only"
             )
             view = LayoutView()
             view.add_item(container)
             await message.channel.send(view=view, delete_after=10)
             warnings = await self.add_warning(message.author)
-            logger.warning(f"Word-Up: Invisible chars detected from {message.author.name}")
+            logger.warning(f"word-up: invalid format from {message.author.name}")
+            return
+
+        # If it's just a GIF, allow it
+        if word_or_reason == "gif":
+            return
+
+        word = word_or_reason
+
+        # Detect invisible characters (extra safety check)
+        if self.detect_invisible_chars(message.content):
+            await message.delete()
+            container = create_error_message(
+                title="invalid input",
+                description="invalid characters detected"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await message.channel.send(view=view, delete_after=10)
+            warnings = await self.add_warning(message.author)
+            logger.warning(f"word-up: invisible chars detected from {message.author.name}")
             return
 
         # Detect gibberish
         if self.detect_gibberish(word):
             await message.delete()
             container = create_error_message(
-                title="Invalid Word",
-                description=f"{message.author.mention} That doesn't look like a valid word"
+                title="invalid word",
+                description=f"{message.author.mention} that doesn't look like a valid word"
             )
             view = LayoutView()
             view.add_item(container)
             await message.channel.send(view=view, delete_after=10)
             warnings = await self.add_warning(message.author)
-            logger.info(f"Word-Up: Gibberish detected from {message.author.name}: {word}")
+            logger.info(f"word-up: gibberish detected from {message.author.name}: {word}")
             return
 
         # If this is the first word, just save it
@@ -352,7 +410,7 @@ class WordUpGame(commands.Cog):
             # Award minimal points for first word
             await self.award_points(message.author, message.guild.id, 10, 0)
 
-            logger.info(f"Word-Up: First word set to '{word}'")
+            logger.info(f"word-up: first word set to '{word}'")
             return
 
         # Check if the same player is trying to play consecutively
@@ -361,13 +419,13 @@ class WordUpGame(commands.Cog):
             await message.delete()
 
             container = create_error_message(
-                title="Can't Play Consecutively",
-                description=f"{message.author.mention} You can't play two words in a row! Wait for another player to go first.\n\n**Last Player:** {message.author.display_name} (you)\n**Your Word:** {word.upper()}"
+                title="can't play consecutively",
+                description=f"{message.author.mention} you can't play two words in a row! wait for another player to go first.\n\n**last player:** {message.author.display_name} (you)\n**your word:** {word.upper()}"
             )
             view = LayoutView()
             view.add_item(container)
             await message.channel.send(view=view, delete_after=10)
-            logger.info(f"Word-Up: {message.author.name} tried to play consecutively with '{word}'")
+            logger.info(f"word-up: {message.author.name} tried to play consecutively with '{word}'")
             return
 
         # Check if the word starts with the last letter of the previous word
@@ -379,8 +437,8 @@ class WordUpGame(commands.Cog):
             await message.delete()
 
             container = create_error_message(
-                title="Wrong Starting Letter",
-                description=f"{message.author.mention} Your word must start with **{expected_start.upper()}**\n\n**Previous word:** {self.last_word.upper()}\n**Your word:** {word.upper()} (starts with {actual_start.upper()})"
+                title="wrong starting letter",
+                description=f"{message.author.mention} your word must start with **{expected_start.upper()}**\n\n**previous word:** {self.last_word.upper()}\n**your word:** {word.upper()} (starts with {actual_start.upper()})"
             )
             view = LayoutView()
             view.add_item(container)
@@ -388,8 +446,8 @@ class WordUpGame(commands.Cog):
             warnings = await self.add_warning(message.author)
 
             logger.info(
-                f"Word-Up violation: {message.author.name} said '{word}' "
-                f"(should start with '{expected_start}') - Warning {warnings}/3"
+                f"word-up violation: {message.author.name} said '{word}' "
+                f"(should start with '{expected_start}') - warning {warnings}/3"
             )
             return
 

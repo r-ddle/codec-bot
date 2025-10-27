@@ -35,11 +35,14 @@ class ServerEventManager:
         return {
             "active": False,
             "event_title": "Weekly Community Challenge",
+            "event_type": "message",  # Type of event: message, xp, reaction
             "message_goal": 1500,  # Default fallback
             "start_date": None,
             "end_date": None,
             "total_messages": 0,
             "participants": {},  # user_id: message_count
+            "participation_history": {},  # user_id: [event_ids they participated in]
+            "event_history": [],  # List of past events with stats
             "last_progress_update": None
         }
 
@@ -118,7 +121,10 @@ class ServerEventManager:
         title: Optional[str] = None,
         message_goal: Optional[int] = None,
         custom_end_date: Optional[datetime] = None,
-        guild_id: Optional[int] = None
+        guild_id: Optional[int] = None,
+        event_type: str = "message",
+        goal: Optional[int] = None,
+        duration_days: int = 7
     ) -> Dict:
         """
         Start a new weekly event with dynamic goal calculation.
@@ -131,11 +137,18 @@ class ServerEventManager:
             message_goal: Target message count (if None, calculates dynamically)
             custom_end_date: Custom end date (if None, uses Sunday 23:59)
             guild_id: Guild ID for dynamic goal calculation
+            event_type: Type of event (message, xp, reaction)
+            goal: Target goal amount (alias for message_goal)
+            duration_days: Duration of event in days
 
         Returns:
             Dict with event details for announcement
         """
         now = datetime.now()
+
+        # Use 'goal' if message_goal is not provided (for backwards compatibility)
+        if message_goal is None and goal is not None:
+            message_goal = goal
 
         # Calculate dynamic goal if not provided
         if message_goal is None:
@@ -146,20 +159,18 @@ class ServerEventManager:
                 message_goal = 1500  # Fallback
                 logger.warning("No guild_id provided for dynamic goal, using fallback")
 
-        # Calculate start (Monday) and end (Sunday)
+        # Calculate start (Monday) and end based on duration_days
         if custom_end_date:
             end_date = custom_end_date
         else:
-            # Find next Sunday at 23:59
-            days_until_sunday = (6 - now.weekday()) % 7
-            if days_until_sunday == 0:
-                days_until_sunday = 7
-            end_date = now + timedelta(days=days_until_sunday)
+            # Calculate end date based on duration_days
+            end_date = now + timedelta(days=duration_days)
             end_date = end_date.replace(hour=23, minute=59, second=59)
 
         self.data = {
             "active": True,
             "event_title": title or "Weekly Community Challenge",
+            "event_type": event_type,
             "message_goal": message_goal,
             "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
@@ -169,11 +180,12 @@ class ServerEventManager:
         }
 
         await self.save_data()
-        logger.info(f"✅ Server event started: {self.data['event_title']}")
+        logger.info(f"✅ Server event started: {self.data['event_title']} ({event_type})")
 
         return {
             "title": self.data["event_title"],
             "goal": self.data["message_goal"],
+            "event_type": event_type,
             "start_date": now.strftime("%A, %b %d"),
             "end_date": end_date.strftime("%A, %b %d")
         }
@@ -191,6 +203,8 @@ class ServerEventManager:
                 "username": username,
                 "message_count": 0
             }
+            # Track participation in this event
+            self.track_participation(user_id)
 
         # Increment message count
         self.data["participants"][user_id_str]["message_count"] += 1
@@ -335,6 +349,9 @@ class ServerEventManager:
             "rewards": rewards
         }
 
+        # Save event to history before marking inactive
+        self.save_event_to_history()
+
         # Mark event as inactive
         self.data["active"] = False
         await self.save_data()
@@ -361,3 +378,100 @@ class ServerEventManager:
             (data["username"], data["message_count"])
             for _, data in sorted_participants[:limit]
         ]
+
+    def track_participation(self, user_id: int, event_id: str = None):
+        """
+        Track user participation in events.
+
+        Args:
+            user_id: Discord user ID
+            event_id: Event identifier (uses current event title if None)
+        """
+        if "participation_history" not in self.data:
+            self.data["participation_history"] = {}
+
+        user_id_str = str(user_id)
+        if user_id_str not in self.data["participation_history"]:
+            self.data["participation_history"][user_id_str] = []
+
+        event_identifier = event_id or self.data.get("event_title", "unknown")
+
+        # Add event to user's participation history if not already there
+        if event_identifier not in self.data["participation_history"][user_id_str]:
+            self.data["participation_history"][user_id_str].append(event_identifier)
+
+    def get_participation_stats(self, user_id: int) -> Dict:
+        """
+        Get participation statistics for a user.
+
+        Args:
+            user_id: Discord user ID
+
+        Returns:
+            Dict with participation stats
+        """
+        user_id_str = str(user_id)
+        participation_history = self.data.get("participation_history", {})
+
+        events_participated = participation_history.get(user_id_str, [])
+
+        return {
+            "total_events": len(events_participated),
+            "events": events_participated,
+            "current_event_active": self.is_event_active(),
+            "current_event_contribution": self.data.get("participants", {}).get(user_id_str, {}).get("message_count", 0) if self.is_event_active() else 0
+        }
+
+    def get_top_participants(self, limit: int = 10) -> List[Tuple[str, int]]:
+        """
+        Get users who participated in the most events.
+
+        Args:
+            limit: Maximum number of participants to return
+
+        Returns:
+            List of (user_id, event_count) tuples
+        """
+        participation_history = self.data.get("participation_history", {})
+
+        # Sort by number of events participated
+        sorted_participants = sorted(
+            participation_history.items(),
+            key=lambda x: len(x[1]),
+            reverse=True
+        )
+
+        return [
+            (user_id, len(events))
+            for user_id, events in sorted_participants[:limit]
+        ]
+
+    def save_event_to_history(self):
+        """Save current event to history when it ends."""
+        if not self.is_event_active():
+            return
+
+        if "event_history" not in self.data:
+            self.data["event_history"] = []
+
+        event_record = {
+            "title": self.data.get("event_title"),
+            "event_type": self.data.get("event_type", "message"),
+            "start_date": self.data.get("start_date"),
+            "end_date": self.data.get("end_date"),
+            "goal": self.data.get("message_goal"),
+            "total_messages": self.data.get("total_messages", 0),
+            "participant_count": len(self.data.get("participants", {})),
+            "goal_reached": self.data.get("total_messages", 0) >= self.data.get("message_goal", 0),
+            "ended_at": datetime.now().isoformat()
+        }
+
+        self.data["event_history"].append(event_record)
+
+        # Keep only last 20 events in history
+        if len(self.data["event_history"]) > 20:
+            self.data["event_history"] = self.data["event_history"][-20:]
+
+    def get_event_history(self, limit: int = 10) -> List[Dict]:
+        """Get past event history."""
+        return self.data.get("event_history", [])[-limit:]

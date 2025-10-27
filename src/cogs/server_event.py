@@ -4,6 +4,7 @@ Server Event Cog - Manages weekly community events
 import discord
 from discord.ext import commands, tasks
 from discord.ui import LayoutView
+from discord import app_commands
 from datetime import datetime, timedelta
 import asyncio
 from io import BytesIO
@@ -19,6 +20,8 @@ from config.settings import logger
 from utils.rate_limiter import enforce_rate_limit
 from config.bot_settings import EVENT_ROLE_ID, EVENT_CHANNEL_ID
 from utils.components_builder import create_stats_container, create_error_message, create_success_message, create_info_card
+from utils.event_modals import CreateEventModal, EndEventModal, EventProgressModal
+from utils.event_templates import list_templates, get_template
 
 
 class ServerEvent(commands.Cog):
@@ -40,16 +43,12 @@ class ServerEvent(commands.Cog):
             if self.event_manager.should_end_event():
                 await self._end_event_and_distribute_rewards()
 
-            # Check if we should start new event (Monday and no active event)
-            elif not self.event_manager.is_event_active() and datetime.now().weekday() == 0:
-                await self._auto_start_event()
-
             # Check if progress update needed
             elif self.event_manager.should_send_progress_update():
                 await self._send_progress_update()
 
         except Exception as e:
-            logger.error(f"Error in event check task: {e}")
+            logger.error(f"error in event check task: {e}")
 
     @check_event_tasks.before_loop
     async def before_check_tasks(self):
@@ -302,20 +301,15 @@ class ServerEvent(commands.Cog):
 
     @commands.command(name='eventstart')
     @commands.has_permissions(administrator=True)
-    async def start_event_command(
-        self,
-        ctx,
-        goal: Optional[int] = None,
-        *,
-        title: Optional[str] = "Weekly Community Challenge"
-    ):
+    async def start_event_command(self, ctx):
         """
-        Start a new server event with dynamic goal (Admin only)
+        Start a new server event with customization modal (Admin only)
 
-        Usage: !eventstart [goal] [title]
-        Examples:
-            !eventstart - Auto-calculates goal based on server activity
-            !eventstart 20000 "Holiday Special Event" - Custom goal
+        Usage: !eventstart
+            Opens a modal to customize the event with options for goal,
+            duration, and description.
+
+        Alternatively, use: /event_create (slash command)
         """
         if self.event_manager.is_event_active():
             container = create_error_message(
@@ -328,28 +322,67 @@ class ServerEvent(commands.Cog):
             return
 
         try:
-            event_info = await self.event_manager.start_event(
-                title=title,
-                message_goal=goal,
-                guild_id=ctx.guild.id
-            )
+            # Create a view with event type selection
+            from discord.ui import Button, View
 
-            goal_text = f"{event_info['goal']:,}"
-            goal_note = " (dynamically calculated)" if goal is None else ""
+            class EventTypeSelectView(View):
+                def __init__(self, event_manager, bot):
+                    super().__init__()
+                    self.event_manager = event_manager
+                    self.bot = bot
 
-            container = create_success_message(
-                title="Event Started",
-                description=f"✅ Event **{title}** started with goal: {goal_text} messages{goal_note}!"
+                @discord.ui.button(label="Message Marathon", style=discord.ButtonStyle.primary, emoji="💬")
+                async def message_type(self, interaction: discord.Interaction, button: discord.ui.Button):
+                    # Show the event creation modal with message type selected
+                    modal = CreateEventModal(
+                        self.event_manager,
+                        EVENT_CHANNEL_ID,
+                        EVENT_ROLE_ID,
+                        event_type="message"
+                    )
+                    await interaction.response.send_modal(modal)
+
+                @discord.ui.button(label="XP Race", style=discord.ButtonStyle.secondary, emoji="⚡")
+                async def xp_type(self, interaction: discord.Interaction, button: discord.ui.Button):
+                    # Show the event creation modal with xp type selected
+                    modal = CreateEventModal(
+                        self.event_manager,
+                        EVENT_CHANNEL_ID,
+                        EVENT_ROLE_ID,
+                        event_type="xp"
+                    )
+                    await interaction.response.send_modal(modal)
+
+                @discord.ui.button(label="Reaction Wave", style=discord.ButtonStyle.success, emoji="⭐")
+                async def reaction_type(self, interaction: discord.Interaction, button: discord.ui.Button):
+                    # Show the event creation modal with reaction type selected
+                    modal = CreateEventModal(
+                        self.event_manager,
+                        EVENT_CHANNEL_ID,
+                        EVENT_ROLE_ID,
+                        event_type="reaction"
+                    )
+                    await interaction.response.send_modal(modal)
+
+            info_container = create_info_card(
+                title="Start Server Event",
+                description="Select the type of event you want to create:"
             )
-            view = LayoutView()
-            view.add_item(container)
-            await ctx.send(view=view)
-            await self._announce_event_start(event_info)
+            view_layout = LayoutView()
+            view_layout.add_item(info_container)
+
+            # Create a regular View for the buttons (outside of LayoutView)
+            button_view = EventTypeSelectView(self.event_manager, self.bot)
+
+            # Send the layout view with container, then send the button view separately
+            await ctx.send(view=view_layout)
+            await ctx.send("", view=button_view)
 
         except Exception as e:
+            logger.error(f"Error showing event creation: {e}")
             container = create_error_message(
                 title="Error Starting Event",
-                description=f"Error starting event: {e}"
+                description=f"Error: {str(e)}"
             )
             view = LayoutView()
             view.add_item(container)
@@ -519,6 +552,193 @@ class ServerEvent(commands.Cog):
         except Exception as e:
             logger.error(f"Error in eventinfo command: {e}")
             await ctx.send(f"Error: {e}")
+
+    # New modal-based slash commands
+    @app_commands.command(name="event_create", description="create a new server event (admin only)")
+    @app_commands.default_permissions(administrator=True)
+    async def event_create_slash(self, interaction: discord.Interaction):
+        """Create a new event using modal form."""
+        modal = CreateEventModal(self.event_manager, EVENT_CHANNEL_ID, EVENT_ROLE_ID)
+        await interaction.response.send_modal(modal)
+
+    @app_commands.command(name="event_end", description="end the current server event (admin only)")
+    @app_commands.default_permissions(administrator=True)
+    async def event_end_slash(self, interaction: discord.Interaction):
+        """End current event using modal confirmation."""
+        if not self.event_manager.is_event_active():
+            await interaction.response.send_message("no active event to end", ephemeral=True)
+            return
+
+        modal = EndEventModal(self.event_manager, self)
+        await interaction.response.send_modal(modal)
+
+    @app_commands.command(name="event_progress", description="send manual progress update (admin only)")
+    @app_commands.default_permissions(administrator=True)
+    async def event_progress_slash(self, interaction: discord.Interaction):
+        """Send manual progress update."""
+        modal = EventProgressModal(self)
+        await interaction.response.send_modal(modal)
+
+    @app_commands.command(name="event_template", description="create event from template (admin only)")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(template="choose an event template")
+    @app_commands.choices(template=[
+        app_commands.Choice(name="⚡ xp race", value="xp_race"),
+        app_commands.Choice(name="💬 message marathon", value="message_war"),
+        app_commands.Choice(name="⭐ reaction wave", value="reaction_wave"),
+        app_commands.Choice(name="🔥 weekend blitz", value="weekend_blitz"),
+        app_commands.Choice(name="🏆 monthly mega challenge", value="monthly_mega")
+    ])
+    async def event_template_slash(self, interaction: discord.Interaction, template: str):
+        """Create event from a preset template."""
+        if self.event_manager.is_event_active():
+            await interaction.response.send_message(
+                "an event is already active. end the current event first",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer()
+
+        try:
+            template_obj = get_template(template)
+            if not template_obj:
+                await interaction.followup.send("template not found", ephemeral=True)
+                return
+
+            # Get template configuration
+            config = template_obj.get_config(interaction.guild.id, self.event_manager)
+
+            # Start event with template config
+            event_info = await self.event_manager.start_event(
+                title=config['title'],
+                event_type=config['event_type'],
+                goal=config['goal'],
+                duration_days=config['duration_days']
+            )
+
+            # Announce event
+            event_channel = interaction.guild.get_channel(EVENT_CHANNEL_ID)
+            if event_channel:
+                img = await asyncio.to_thread(
+                    generate_event_start_banner,
+                    event_title=config['title'],
+                    message_goal=config['goal'],
+                    start_date=event_info['start_date'],
+                    end_date=event_info['end_date']
+                )
+
+                buffer = BytesIO()
+                await asyncio.to_thread(img.save, buffer, 'PNG')
+                buffer.seek(0)
+
+                file = discord.File(buffer, filename='event_start.png')
+
+                role_mention = ""
+                if EVENT_ROLE_ID:
+                    role = interaction.guild.get_role(EVENT_ROLE_ID)
+                    if role:
+                        role_mention = f"{role.mention}\n\n"
+
+                await event_channel.send(
+                    f"{role_mention}**{config['icon']} new server event started**\n"
+                    f"{config['description']}\n\n"
+                    f"type: {config['event_type']}\n"
+                    f"goal: {config['goal']:,}\n"
+                    f"duration: {config['duration_days']} days",
+                    file=file
+                )
+
+            await interaction.followup.send(
+                f"event '{config['title']}' created from template",
+                ephemeral=True
+            )
+
+        except Exception as e:
+            await interaction.followup.send(
+                f"error creating event from template: {str(e)}",
+                ephemeral=True
+            )
+
+    @app_commands.command(name="event_participants", description="view top event participants")
+    async def event_participants_slash(self, interaction: discord.Interaction):
+        """Show top event participants across all events."""
+        await interaction.response.defer()
+
+        try:
+            top_participants = self.event_manager.get_top_participants(limit=10)
+
+            if not top_participants:
+                await interaction.followup.send("no participation data available")
+                return
+
+            # Build component display
+            fields = []
+            for i, (user_id, event_count) in enumerate(top_participants, 1):
+                try:
+                    member = interaction.guild.get_member(int(user_id))
+                    name = member.display_name if member else f"user {user_id}"
+                except:
+                    name = f"user {user_id}"
+
+                fields.append({
+                    "name": f"#{i} {name}",
+                    "value": f"participated in {event_count} events"
+                })
+
+            container = create_stats_container(
+                title="top event participants",
+                description="members who participated in the most events",
+                stats={field['name']: field['value'] for field in fields}
+            )
+
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.followup.send(view=view)
+
+        except Exception as e:
+            await interaction.followup.send(f"error fetching participants: {str(e)}")
+
+    @app_commands.command(name="my_event_stats", description="view your event participation stats")
+    async def my_event_stats_slash(self, interaction: discord.Interaction):
+        """Show user's event participation statistics."""
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            stats = self.event_manager.get_participation_stats(interaction.user.id)
+
+            fields = [
+                {
+                    "name": "total events participated",
+                    "value": str(stats['total_events'])
+                }
+            ]
+
+            if stats['current_event_active']:
+                fields.append({
+                    "name": "current event contribution",
+                    "value": f"{stats['current_event_contribution']:,} messages"
+                })
+
+            if stats['events']:
+                recent_events = stats['events'][-5:]
+                fields.append({
+                    "name": "recent events",
+                    "value": "\n".join(f"• {event}" for event in recent_events)
+                })
+
+            container = create_stats_container(
+                title=f"{interaction.user.display_name}'s event stats",
+                description="your participation history",
+                stats={field['name']: field['value'] for field in fields}
+            )
+
+            view = LayoutView()
+            view.add_item(container)
+            await interaction.followup.send(view=view, ephemeral=True)
+
+        except Exception as e:
+            await interaction.followup.send(f"error fetching stats: {str(e)}", ephemeral=True)
 
 
 async def setup(bot):

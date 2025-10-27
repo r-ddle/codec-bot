@@ -4,9 +4,9 @@ import asyncio
 import shutil
 import time
 from typing import Dict, Any, List, Tuple, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from config.settings import DATABASE_FILE, logger, NEON_SYNC_INTERVAL_MINUTES
-from config.constants import ACTIVITY_REWARDS, DEFAULT_MEMBER_DATA, RANK_XP_MULTIPLIERS
+from config.constants import ACTIVITY_REWARDS, DEFAULT_MEMBER_DATA, RANK_XP_MULTIPLIERS, STREAK_XP_BONUSES
 from utils.rank_system import calculate_rank_from_xp
 
 
@@ -313,3 +313,98 @@ class MemberData:
         member_data = self.get_member_data(member_id, guild_id)
         member_data["verified"] = True
         self.schedule_save()
+
+    def update_activity_streak(self, member_id: int, guild_id: int) -> Dict[str, Any]:
+        """
+        Update member's activity streak and return streak info.
+
+        Returns:
+            Dict with streak info: {
+                'current_streak': int,
+                'streak_broken': bool,
+                'is_new_day': bool,
+                'xp_bonus': int
+            }
+        """
+        member_data = self.get_member_data(member_id, guild_id)
+
+        today = datetime.now().date()
+        last_activity = member_data.get("last_activity_date")
+
+        # Convert string to date if needed
+        if isinstance(last_activity, str):
+            try:
+                last_activity = datetime.fromisoformat(last_activity).date()
+            except:
+                last_activity = None
+
+        streak_info = {
+            'current_streak': member_data.get('current_streak', 0),
+            'streak_broken': False,
+            'is_new_day': False,
+            'xp_bonus': 0
+        }
+
+        # First time user is active
+        if last_activity is None:
+            member_data['current_streak'] = 1
+            member_data['longest_streak'] = 1
+            member_data['last_activity_date'] = today.isoformat()
+            streak_info['current_streak'] = 1
+            streak_info['is_new_day'] = True
+            self.schedule_save()
+            return streak_info
+
+        days_diff = (today - last_activity).days
+
+        # Same day - no streak change
+        if days_diff == 0:
+            streak_info['current_streak'] = member_data.get('current_streak', 0)
+            streak_info['xp_bonus'] = self._get_streak_bonus(member_data.get('current_streak', 0))
+            return streak_info
+
+        # Next day - continue streak
+        elif days_diff == 1:
+            member_data['current_streak'] = member_data.get('current_streak', 0) + 1
+            member_data['last_activity_date'] = today.isoformat()
+
+            # Update longest streak if needed
+            if member_data['current_streak'] > member_data.get('longest_streak', 0):
+                member_data['longest_streak'] = member_data['current_streak']
+
+            streak_info['current_streak'] = member_data['current_streak']
+            streak_info['is_new_day'] = True
+            streak_info['xp_bonus'] = self._get_streak_bonus(member_data['current_streak'])
+            self.schedule_save()
+            return streak_info
+
+        # Streak broken (more than 1 day gap)
+        else:
+            member_data['current_streak'] = 1
+            member_data['last_activity_date'] = today.isoformat()
+            streak_info['current_streak'] = 1
+            streak_info['streak_broken'] = True
+            streak_info['is_new_day'] = True
+            streak_info['xp_bonus'] = 0
+            self.schedule_save()
+            return streak_info
+
+    def _get_streak_bonus(self, streak_days: int) -> int:
+        """Calculate XP bonus based on streak days."""
+        bonus = 0
+        for threshold, xp_bonus in sorted(STREAK_XP_BONUSES.items(), reverse=True):
+            if streak_days >= threshold:
+                bonus = xp_bonus
+                break
+        return bonus
+
+    def get_streak_info(self, member_id: int, guild_id: int) -> Dict[str, Any]:
+        """Get streak information for a member."""
+        member_data = self.get_member_data(member_id, guild_id)
+
+        return {
+            'current_streak': member_data.get('current_streak', 0),
+            'longest_streak': member_data.get('longest_streak', 0),
+            'xp_bonus': self._get_streak_bonus(member_data.get('current_streak', 0)),
+            'last_activity_date': member_data.get('last_activity_date')
+        }

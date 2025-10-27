@@ -21,7 +21,8 @@ from utils.components_builder import (
     create_error_message,
     create_progress_container,
     create_simple_message,
-    create_success_message
+    create_success_message,
+    LeaderboardView
 )
 from config.settings import logger
 
@@ -43,17 +44,34 @@ class Progression(commands.Cog):
         member_data = self.bot.member_data.get_member_data(member_id, guild_id)
         next_rank_info = get_next_rank_info(member_data['xp'], member_data['rank'])
 
+        # Get streak info
+        streak_info = self.bot.member_data.get_streak_info(member_id, guild_id)
+
         # Build fields for the status display
         fields = [
             {
-                "name": "CURRENT STATUS",
-                "value": f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}"
-            },
-            {
-                "name": "ACTIVITY STATS",
-                "value": f"```\nMessages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min\n```"
+                "name": "current status",
+                "value": f"**rank:** {member_data['rank']}\n**xp:** {format_number(member_data['xp'])}"
             }
         ]
+
+        # Add streak info if user has an active streak
+        if streak_info['current_streak'] > 0:
+            streak_text = f"**current streak:** {streak_info['current_streak']} days\n"
+            if streak_info['longest_streak'] > streak_info['current_streak']:
+                streak_text += f"**best streak:** {streak_info['longest_streak']} days\n"
+            if streak_info['xp_bonus'] > 0:
+                streak_text += f"**xp bonus:** +{streak_info['xp_bonus']} per message"
+
+            fields.append({
+                "name": "activity streak",
+                "value": streak_text
+            })
+
+        fields.append({
+            "name": "activity stats",
+            "value": f"```\nmessages: {format_number(member_data['messages_sent'])}\nvoice: {format_number(member_data['voice_minutes'])} min\n```"
+        })
 
         if next_rank_info:
             xp_progress = member_data["xp"] - next_rank_info["current_rank_xp"]
@@ -65,24 +83,24 @@ class Progression(commands.Cog):
             rank_data = get_rank_data_by_name(next_rank_info["name"])
             role_name = rank_data.get("role_name", next_rank_info["name"])
 
-            progress_text = f"```\nNext Rank: {next_rank_info['name']} {next_rank_info['icon']}\nDiscord Role: {role_name}\n\n"
-            progress_text += f"XP: {format_number(member_data['xp'])} / {format_number(next_rank_info['next_xp'])} {xp_bar}\n\n"
+            progress_text = f"```\nnext rank: {next_rank_info['name']} {next_rank_info['icon']}\ndiscord role: {role_name}\n\n"
+            progress_text += f"xp: {format_number(member_data['xp'])} / {format_number(next_rank_info['next_xp'])} {xp_bar}\n\n"
 
             if xp_needed > 0:
-                progress_text += f"NEEDED FOR PROMOTION:\nXP: {format_number(xp_needed)}\n"
+                progress_text += f"needed for promotion:\nxp: {format_number(xp_needed)}\n"
             else:
-                progress_text += "✓ READY FOR PROMOTION!\n"
+                progress_text += "ready for promotion\n"
 
             progress_text += "```"
 
             fields.append({
-                "name": "RANK PROGRESS",
+                "name": "rank progress",
                 "value": progress_text
             })
         else:
             fields.append({
-                "name": "MAXIMUM RANK",
-                "value": "```\n✓ FOXHOUND operative - highest rank achieved!\n```"
+                "name": "maximum rank",
+                "value": "```\nfoxhound operative - highest rank achieved\n```"
             })
 
         container = create_status_container(
@@ -199,12 +217,14 @@ class Progression(commands.Cog):
 
         valid_categories = {
             "xp": ("EXPERIENCE POINTS", "XP"),
-            "messages": ("MESSAGES SENT", "MSG")
+            "messages": ("MESSAGES SENT", "MSG"),
+            "voice": ("VOICE TIME", "MIN")
         }
 
         category_mapping = {
             "xp": "xp",
-            "messages": "messages_sent"
+            "messages": "messages_sent",
+            "voice": "voice_minutes"
         }
 
         if category.lower() not in category_mapping:
@@ -220,8 +240,8 @@ class Progression(commands.Cog):
 
         if not leaderboard_data:
             container = create_error_message(
-                "No operatives found in database",
-                "There are no members with activity data to display."
+                "no operatives found in database",
+                "there are no members with activity data to display."
             )
             view = LayoutView()
             view.add_item(container)
@@ -236,7 +256,7 @@ class Progression(commands.Cog):
                 for i, (member_id, data) in enumerate(leaderboard_data, 1):
                     try:
                         member = ctx.guild.get_member(int(member_id))
-                        name = member.display_name if member else f"Unknown"
+                        name = member.display_name if member else f"unknown"
                         value = data.get(sort_field, 0)
                         rank_icon = data.get("rank_icon", "")
 
@@ -259,12 +279,16 @@ class Progression(commands.Cog):
                 buffer.seek(0)
 
                 file = discord.File(buffer, filename='leaderboard.png')
-                await ctx.send(file=file)
+
+                # Create interactive view with category buttons
+                view = LeaderboardView(self.bot, ctx, category.lower())
+                message = await ctx.send(file=file, view=view)
+                view.message = message
 
             except Exception as e:
                 container = create_error_message(
-                    "Failed to generate leaderboard",
-                    f"Error details: {str(e)}"
+                    "failed to generate leaderboard",
+                    f"error details: {str(e)}"
                 )
                 view = LayoutView()
                 view.add_item(container)

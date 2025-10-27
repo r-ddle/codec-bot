@@ -47,11 +47,18 @@ class MessageEvents(commands.Cog):
         if current_time - last_msg_time > MESSAGE_COOLDOWN:
             member_data["last_message_time"] = current_time
 
-            # Give base message rewards
-            message_xp = ACTIVITY_REWARDS["message"]["xp"]
+            # Update activity streak
+            streak_info = self.bot.member_data.update_activity_streak(member_id, guild_id)
+
+            # Calculate XP with streak bonus
+            base_message_xp = ACTIVITY_REWARDS["message"]["xp"]
+            streak_bonus = streak_info.get('xp_bonus', 0)
+            total_xp = base_message_xp + streak_bonus
+
+            # Give message rewards with streak bonus
             message_rank_changed, message_new_rank = self.bot.member_data.add_xp(
                 member_id, guild_id,
-                message_xp,
+                total_xp,
                 "message"
             )
 
@@ -93,7 +100,7 @@ class MessageEvents(commands.Cog):
                     file = discord.File(fp=image_bytes, filename="promotion.png")
 
                     # Add context message
-                    context_msg = f"**Rank Promotion** - {message.author.mention} promoted from **{old_rank}** to **{new_rank}**!"
+                    context_msg = f"**rank promotion** - {message.author.mention} promoted from **{old_rank}** to **{new_rank}**!"
 
                     await message.channel.send(content=context_msg, file=file)
 

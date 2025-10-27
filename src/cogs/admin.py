@@ -3,6 +3,7 @@ Admin cog - Administrative commands for role management and testing.
 """
 import discord
 from discord.ext import commands
+from discord import app_commands
 import asyncio
 from typing import Optional
 
@@ -18,6 +19,7 @@ from utils.components_builder import (
     create_info_card,
     create_simple_message
 )
+from utils.admin_modals import AddXPModal, RemoveXPModal, SetRankModal
 from io import BytesIO
 
 
@@ -1214,6 +1216,43 @@ Lieutenant: 750 XP
         view = LayoutView()
         view.add_item(container)
         await ctx.send(view=view)
+
+    # Modal-based admin commands
+    @app_commands.command(name="add_xp", description="add xp to a member (admin only)")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(member="the member to add xp to")
+    async def add_xp_slash(self, interaction: discord.Interaction, member: discord.Member):
+        """Add XP to a member using a modal form."""
+        if member.bot:
+            await interaction.response.send_message("cannot add xp to bots", ephemeral=True)
+            return
+
+        modal = AddXPModal(self.bot, member)
+        await interaction.response.send_modal(modal)
+
+    @app_commands.command(name="remove_xp", description="remove xp from a member (admin only)")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(member="the member to remove xp from")
+    async def remove_xp_slash(self, interaction: discord.Interaction, member: discord.Member):
+        """Remove XP from a member using a modal form."""
+        if member.bot:
+            await interaction.response.send_message("cannot remove xp from bots", ephemeral=True)
+            return
+
+        modal = RemoveXPModal(self.bot, member)
+        await interaction.response.send_modal(modal)
+
+    @app_commands.command(name="set_rank", description="set a member's rank directly (admin only)")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(member="the member to set rank for")
+    async def set_rank_slash(self, interaction: discord.Interaction, member: discord.Member):
+        """Set a member's rank using a modal form."""
+        if member.bot:
+            await interaction.response.send_message("cannot set rank for bots", ephemeral=True)
+            return
+
+        modal = SetRankModal(self.bot, member)
+        await interaction.response.send_modal(modal)
 
 
 async def setup(bot):

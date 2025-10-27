@@ -53,8 +53,9 @@ A feature-rich Discord bot with XP-based ranking system, Word-Up game, server ev
         return """## Bot Commands
 
 **Progression & XP:**
-• `!status` - View your XP and rank
 • `!rank` - Display your rank card
+• `!rankinfo` - View rank system info and perks
+• `!status` - View your XP and rank (slash command)
 • `!daily` - Claim daily XP bonus
 • `!leaderboard` - View server leaderboard
 
@@ -68,6 +69,7 @@ A feature-rich Discord bot with XP-based ranking system, Word-Up game, server ev
 
 **Utility:**
 • `!lvlup` - Learn about the ranking system
+• `!rankinfo` - Show rank system info
 • `!ping` - Check bot latency
 • `!info` - Show this information
 

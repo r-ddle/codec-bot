@@ -1,6 +1,6 @@
 """
 Server Event Image Generator - MGS Codec Style
-Generates progress images for weekly server events
+Generates progress images for server events
 """
 from PIL import Image, ImageDraw
 from datetime import datetime, timedelta
@@ -25,16 +25,18 @@ from utils.image_gen import (
 
 def generate_event_start_banner(
     event_title: str,
+    event_type: str,
     message_goal: int,
     start_date: str,
     end_date: str
 ) -> Image.Image:
     """
-    Generate event start banner - announces new weekly event
+    Generate event start banner - announces new server event
 
     Args:
         event_title: Event name
-        message_goal: Target message count
+        event_type: Type of event (message, xp, reaction)
+        message_goal: Target message count / goal
         start_date: Start date string
         end_date: End date string
     """
@@ -73,8 +75,18 @@ def generate_event_start_banner(
                   primary_font=font_subtitle, fill=CODEC_GREEN_BRIGHT)
 
     objective_y = details_y + 40
+
+    # Display goal based on event type
+    goal_text = f"► TARGET: {message_goal:,}"
+    if event_type.lower() == "message":
+        goal_text += " MESSAGES"
+    elif event_type.lower() == "xp":
+        goal_text += " XP"
+    elif event_type.lower() == "reaction":
+        goal_text += " REACTIONS"
+
     safe_draw_text(draw, (50, objective_y),
-                  f"► REACH {message_goal:,} MESSAGES",
+                  goal_text,
                   primary_font=font_body, fill=CODEC_GREEN_TEXT)
 
     safe_draw_text(draw, (50, objective_y + 35),
@@ -330,17 +342,17 @@ def generate_event_results(
 if __name__ == "__main__":
     # Test start banner
     start_img = generate_event_start_banner(
-        event_title="Weekly Community Challenge",
+        event_title="community challenge",
         message_goal=15000,
-        start_date="MONDAY, OCT 9",
-        end_date="SUNDAY, OCT 15"
+        start_date="monday, oct 9",
+        end_date="sunday, oct 15"
     )
     start_img.save("event_start_test.png")
-    print("✅ Start banner saved!")
+    print("start banner saved")
 
     # Test progress
     progress_img = generate_event_progress(
-        event_title="Weekly Community Challenge",
+        event_title="community challenge",
         current_messages=8542,
         goal_messages=15000,
         time_remaining="3 days, 12 hours",
@@ -352,11 +364,11 @@ if __name__ == "__main__":
         ]
     )
     progress_img.save("event_progress_test.png")
-    print("✅ Progress image saved!")
+    print("progress image saved")
 
     # Test results
     results_img = generate_event_results(
-        event_title="Weekly Community Challenge",
+        event_title="community challenge",
         total_messages=16234,
         goal_messages=15000,
         goal_reached=True,
