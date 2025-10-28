@@ -9,6 +9,7 @@ Rules:
 - Non-word messages (only GIFs, embeds, etc.) are allowed
 - Tiered rewards: Dictionary words get more points than slang/names
 - Anti-spam and anti-troll protection
+- Message format: Regular English words or (word) format
 """
 import discord
 from discord.ext import commands, tasks
@@ -133,7 +134,7 @@ class WordUpGame(commands.Cog):
 
     def is_valid_message_format(self, message: discord.Message) -> tuple[bool, str]:
         """
-        Check if message follows allowed format: (word) or GIF only.
+        Check if message follows allowed format: word, (word), or GIF only.
 
         Args:
             message: Discord message object
@@ -149,25 +150,31 @@ class WordUpGame(commands.Cog):
             for attachment in message.attachments
         )
 
-        # Check if content matches (word) pattern
-        parenthesis_match = re.match(r'^\(([a-zA-Z]+)\)$', content)
-
         # Allow GIF-only messages
         if has_gif and not content:
             return (True, "gif")
 
-        # Allow (word) format
+        # Check if content matches (word) pattern
+        parenthesis_match = re.match(r'^\(([a-zA-Z]+)\)$', content)
         if parenthesis_match:
             word = parenthesis_match.group(1).lower()
             # Verify ASCII English letters only
             if all(ord(c) < 128 and c.isalpha() for c in word):
                 return (True, word)
 
-        # Check if they tried to send a word without parentheses
-        if content and not parenthesis_match:
-            return (False, "messages must be in format (word) or GIF only")
+        # Check if it's just a regular word (ASCII English letters only)
+        word_match = re.match(r'^([a-zA-Z]+)$', content)
+        if word_match:
+            word = word_match.group(1).lower()
+            # Verify ASCII English letters only
+            if all(ord(c) < 128 and c.isalpha() for c in word):
+                return (True, word)
 
-        return (False, "invalid message format")
+        # Check for non-English/special characters
+        if content and not re.match(r'^[a-zA-Z()]*$', content):
+            return (False, "non-english special characters are not allowed")
+
+        return (False, "please send a word or GIF only")
 
     def detect_gibberish(self, word: str) -> bool:
         """
@@ -357,7 +364,7 @@ class WordUpGame(commands.Cog):
             await message.delete()
             container = create_error_message(
                 title="invalid format",
-                description=f"{message.author.mention} {word_or_reason}\n\nallowed formats:\n• (word) - word in parentheses\n• gif attachments only"
+                description=f"{message.author.mention} {word_or_reason}\n\nallowed formats:\n• word - regular english words\n• (word) - word in parentheses\n• gif attachments only"
             )
             view = LayoutView()
             view.add_item(container)
