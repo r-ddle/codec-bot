@@ -1,15 +1,15 @@
 {
-  "active": true,
+  "active": false,
   "event_title": "Reaction Wave",
   "event_type": "reaction",
   "message_goal": 1500,
   "start_date": "2025-10-27T17:15:35.944481",
   "end_date": "2025-11-26T23:59:59.944481",
-  "total_messages": 10,
+  "total_messages": 11,
   "participants": {
     "1040597411116089424": {
       "username": "riddle",
-      "message_count": 8
+      "message_count": 9
     },
     "1040987719779745832": {
       "username": "eggbuffet",
@@ -31,5 +31,18 @@
     "1311383285569687603": [
       "Reaction Wave"
     ]
-  }
+  },
+  "event_history": [
+    {
+      "title": "Reaction Wave",
+      "event_type": "reaction",
+      "start_date": "2025-10-27T17:15:35.944481",
+      "end_date": "2025-11-26T23:59:59.944481",
+      "goal": 1500,
+      "total_messages": 11,
+      "participant_count": 3,
+      "goal_reached": false,
+      "ended_at": "2025-10-29T13:39:42.522988"
+    }
+  ]
 }

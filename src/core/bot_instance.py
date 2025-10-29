@@ -15,6 +15,7 @@ from database.member_data import MemberData
 from database.neon_db import NeonDatabase
 from database.extensions import DatabaseExtensions
 from utils.components_builder import create_info_card
+from utils.rich_presence_manager import RichPresenceManager
 
 
 class MGSBot(commands.Bot):
@@ -32,6 +33,9 @@ class MGSBot(commands.Bot):
 
         # Initialize member data with Neon integration
         self.member_data = MemberData(neon_db=self.neon_db)
+
+        # Initialize Rich Presence Manager
+        self.rich_presence = RichPresenceManager(self)
 
         self.remove_command('help')  # Remove default help to use custom one
         self.bot_metadata_file = 'bot_metadata.json'
@@ -96,7 +100,7 @@ class MGSBot(commands.Bot):
             await self.db_extensions.init_extended_schema()
             logger.info("✅ Database extensions initialized")
 
-        # Start background tasks
+        # Start background tasks (RPC initialization will happen in on_ready)
         self.track_voice_activity.start()
         self.backup_data.start()
         self.auto_save_data.start()
@@ -117,6 +121,17 @@ class MGSBot(commands.Bot):
             logger.info(f"✅ Synced {len(synced)} slash commands")
         except Exception as e:
             logger.error(f"❌ Error syncing slash commands: {e}")
+
+    async def on_ready(self):
+        """Called when the bot is ready and connected."""
+        if not hasattr(self, '_rpc_initialized'):
+            # Initialize Rich Presence only once
+            try:
+                await self.rich_presence.initialize_presence()
+                self._rpc_initialized = True
+                logger.info("✅ Rich Presence initialized")
+            except Exception as e:
+                logger.error(f"Error initializing Rich Presence in on_ready: {e}")
 
 
     @tasks.loop(minutes=VOICE_TRACK_INTERVAL)

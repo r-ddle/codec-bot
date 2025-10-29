@@ -15,25 +15,7 @@ class MemberEvents(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def _update_presence(self):
-        """Update streaming presence with current member count."""
-        try:
-            # Calculate total members across all guilds
-            total_members = sum(guild.member_count for guild in self.bot.guilds)
 
-            activity = discord.Streaming(
-                name=f"Watching over {total_members} soldiers",
-                url="https://www.twitch.tv/metalgearsolid"
-            )
-
-            await self.bot.change_presence(
-                activity=activity,
-                status=discord.Status.online
-            )
-            print(f"[OK] Presence updated: Watching over {total_members} soldiers")
-
-        except Exception as e:
-            logger.error(f"Error updating presence: {e}")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -51,9 +33,6 @@ class MemberEvents(commands.Cog):
 
         print(" Bot is fully ready and operational!")
         print(" XP-based ranking system active!")
-
-        # Set initial streaming presence
-        await self._update_presence()
 
     @commands.Cog.listener()
     async def on_member_join(self, member):

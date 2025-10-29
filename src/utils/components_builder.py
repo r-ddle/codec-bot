@@ -35,27 +35,40 @@ def create_status_container(
     container = Container()  # No accent_color
 
     # Title as TextDisplay
-    container.add_item(TextDisplay(content=f"# {title}"))
+    title_text = f"# {title}"
+    if len(title_text) <= 2000:
+        container.add_item(TextDisplay(content=title_text))
 
     if thumbnail_url:
         container.add_item(Separator(spacing=SeparatorSpacing.small))
-        # Add thumbnail using Section with accessory
-        thumb_section = Section(
-            TextDisplay(content=""),  # Empty content
-            accessory=Thumbnail(thumbnail_url)
-        )
-        container.add_item(thumb_section)
+        try:
+            # Add thumbnail using Section with accessory
+            thumb_section = Section(
+                TextDisplay(content=""),  # Empty content
+                accessory=Thumbnail(thumbnail_url)
+            )
+            container.add_item(thumb_section)
+        except Exception:
+            pass  # Silently skip thumbnail if there's an error
 
     container.add_item(Separator(spacing=SeparatorSpacing.small))
 
-    # Add fields as text displays
+    # Add fields as separate text displays with strict length checks
     for field in fields:
-        container.add_item(TextDisplay(content=f"**{field['name']}**\n{field['value']}"))
+        field_name = str(field.get('name', ''))[:80]  # Limit field name to 80 chars
+        field_value = str(field.get('value', ''))[:1900]  # Limit field value to 1900 chars
+        field_content = f"**{field_name}**\n{field_value}"
+
+        # Maximum content length per TextDisplay is 4000, but we'll be safe at 3500
+        if len(field_content) <= 3500:
+            container.add_item(TextDisplay(content=field_content))
 
     # Footer if provided
     if footer:
         container.add_item(Separator(spacing=SeparatorSpacing.small))
-        container.add_item(TextDisplay(content=f"*{footer}*"))
+        footer_text = f"*{str(footer)[:1900]}*"  # Limit footer text to 1900 chars
+        if len(footer_text) <= 3500:
+            container.add_item(TextDisplay(content=footer_text))
 
     return container
 
