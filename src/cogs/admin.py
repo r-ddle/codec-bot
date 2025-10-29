@@ -1,4 +1,4 @@
-﻿"""
+"""
 Admin cog - Administrative commands for role management and testing.
 """
 import discord
@@ -7,7 +7,7 @@ from discord import app_commands
 import asyncio
 from typing import Optional
 
-from config.constants import MGS_RANKS
+from config.constants import COZY_RANKS
 from config.settings import logger
 from utils.rank_system import get_rank_data_by_name, calculate_rank_from_xp
 from utils.role_manager import update_member_roles
@@ -54,13 +54,13 @@ class Admin(commands.Cog):
 
             # Find current rank index
             current_index = 0
-            for i, rank_data in enumerate(MGS_RANKS):
+            for i, rank_data in enumerate(COZY_RANKS):
                 if rank_data["name"] == current_rank:
                     current_index = i
                     break
 
             # Check if can be promoted
-            if current_index >= len(MGS_RANKS) - 1:
+            if current_index >= len(COZY_RANKS) - 1:
                 container = create_info_card(
                     "Maximum Rank Reached",
                     f"{member.display_name} is already at maximum rank: {current_rank}. This member cannot be promoted any further."
@@ -72,8 +72,8 @@ class Admin(commands.Cog):
                 return
 
             # Get next rank
-            next_rank = MGS_RANKS[current_index + 1]
-            old_roles = [role.name for role in member.roles if role.name in [r["role_name"] for r in MGS_RANKS if r["role_name"]]]
+            next_rank = COZY_RANKS[current_index + 1]
+            old_roles = [role.id for role in member.roles if role.id in [r["role_id"] for r in COZY_RANKS if r.get("role_id")]]
 
             # Force promote by setting XP to required amount
             member_data["xp"] = next_rank["required_xp"]
@@ -123,7 +123,7 @@ class Admin(commands.Cog):
 
                 except Exception as e:
                     # Fallback to component display if image fails
-                    new_roles = [role.name for role in member.roles if role.name in [r["role_name"] for r in MGS_RANKS if r["role_name"]]]
+                    new_roles = [role.id for role in member.roles if role.id in [r["role_id"] for r in COZY_RANKS if r.get("role_id")]]
 
                     container = create_status_container(
                         title="🎖️ RANK PROMOTION TEST",
@@ -368,17 +368,19 @@ Lieutenant: 750 XP
     @commands.has_permissions(administrator=True)
     async def check_roles(self, ctx):
         """Check if all required rank roles exist."""
-        required_roles = [rank["role_name"] for rank in MGS_RANKS if rank["role_name"]]
+        required_role_ids = [rank["role_id"] for rank in COZY_RANKS if rank.get("role_id")]
 
         missing_roles = []
         existing_roles = []
 
-        for role_name in required_roles:
-            role = discord.utils.get(ctx.guild.roles, name=role_name)
+        for role_id in required_role_ids:
+            role = ctx.guild.get_role(role_id)
+            # Get the rank name for display
+            rank_name = next((r["name"] for r in COZY_RANKS if r.get("role_id") == role_id), f"Role ID {role_id}")
             if role:
-                existing_roles.append(f"✅ {role_name}")
+                existing_roles.append(f"✅ {rank_name} (ID: {role_id})")
             else:
-                missing_roles.append(f"❌ {role_name}")
+                missing_roles.append(f"❌ {rank_name} (ID: {role_id})")
 
         fields = []
 
@@ -820,13 +822,13 @@ Lieutenant: 750 XP
             if rank_name:
                 # Promote to specific rank
                 target_rank = None
-                for rank in MGS_RANKS:
+                for rank in COZY_RANKS:
                     if rank["name"].lower() == rank_name.lower():
                         target_rank = rank
                         break
 
                 if not target_rank:
-                    available_ranks = ", ".join([f'"{r["name"]}"' for r in MGS_RANKS])
+                    available_ranks = ", ".join([f'"{r["name"]}"' for r in COZY_RANKS])
                     container = create_error_message(
                         "Invalid rank name",
                         f"Available ranks:\n{available_ranks}"
@@ -839,12 +841,12 @@ Lieutenant: 750 XP
             else:
                 # Promote to next rank
                 current_index = 0
-                for i, rank in enumerate(MGS_RANKS):
+                for i, rank in enumerate(COZY_RANKS):
                     if rank["name"] == old_rank:
                         current_index = i
                         break
 
-                if current_index >= len(MGS_RANKS) - 1:
+                if current_index >= len(COZY_RANKS) - 1:
                     container = create_error_message(
                         "Already at maximum rank",
                         f"{member.display_name} is already at maximum rank: {old_rank}"
@@ -855,7 +857,7 @@ Lieutenant: 750 XP
                     await ctx.send(view=view)
                     return
 
-                target_rank = MGS_RANKS[current_index + 1]
+                target_rank = COZY_RANKS[current_index + 1]
 
             member_data['rank'] = target_rank['name']
             member_data['rank_icon'] = target_rank['icon']
@@ -921,13 +923,13 @@ Lieutenant: 750 XP
             if rank_name:
                 # Demote to specific rank
                 target_rank = None
-                for rank in MGS_RANKS:
+                for rank in COZY_RANKS:
                     if rank["name"].lower() == rank_name.lower():
                         target_rank = rank
                         break
 
                 if not target_rank:
-                    available_ranks = ", ".join([f'"{r["name"]}"' for r in MGS_RANKS])
+                    available_ranks = ", ".join([f'"{r["name"]}"' for r in COZY_RANKS])
                     container = create_error_message(
                         "Invalid rank name",
                         f"Available ranks:\n{available_ranks}"
@@ -940,7 +942,7 @@ Lieutenant: 750 XP
             else:
                 # Demote to previous rank
                 current_index = 0
-                for i, rank in enumerate(MGS_RANKS):
+                for i, rank in enumerate(COZY_RANKS):
                     if rank["name"] == old_rank:
                         current_index = i
                         break
@@ -956,7 +958,7 @@ Lieutenant: 750 XP
                     await ctx.send(view=view)
                     return
 
-                target_rank = MGS_RANKS[current_index - 1]
+                target_rank = COZY_RANKS[current_index - 1]
 
             member_data['rank'] = target_rank['name']
             member_data['rank_icon'] = target_rank['icon']
@@ -1253,6 +1255,261 @@ Lieutenant: 750 XP
 
         modal = SetRankModal(self.bot, member)
         await interaction.response.send_modal(modal)
+
+    @commands.command(name='monthly_reset', aliases=['reset_monthly'])
+    @commands.has_permissions(administrator=True)
+    async def monthly_reset(self, ctx, force: bool = False):
+        """
+        Perform a monthly XP reset with data archiving.
+
+        Args:
+            force: If True, performs reset even if not the 1st of the month
+
+        Usage:
+            !monthly_reset - Check if reset is needed
+            !monthly_reset true - Force reset regardless of date
+        """
+        from datetime import date
+        from discord.ui import LayoutView
+
+        current_date = date.today()
+
+        # Check if we should perform the reset
+        should_reset = force or current_date.day == 1
+
+        if not force and current_date.day != 1:
+            container = create_info_card(
+                title="📅 Monthly Reset Status",
+                description=f"**Current Date:** {current_date.strftime('%B %d, %Y')}\n\n"
+                          f"Monthly resets occur automatically on the 1st of each month.\n\n"
+                          f"**Next Reset:** {current_date.replace(day=1).replace(month=current_date.month % 12 + 1).strftime('%B 1, %Y')}\n\n"
+                          f"To force a reset right now, use:\n`!monthly_reset true`",
+                color_code="blue"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            return
+
+        # Check if already reset this month
+        if self.bot.last_monthly_reset and \
+           self.bot.last_monthly_reset.month == current_date.month and \
+           self.bot.last_monthly_reset.year == current_date.year and \
+           not force:
+            container = create_error_message(
+                "Already Reset",
+                f"Monthly reset was already performed on {self.bot.last_monthly_reset.strftime('%B %d, %Y')}.\n\n"
+                f"Use `!monthly_reset true` to force another reset."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            return
+
+        # Confirm before proceeding
+        container = create_info_card(
+            title="⚠️ Confirm Monthly Reset",
+            description=f"**This will:**\n"
+                      f"• Archive current member data to database\n"
+                      f"• Reset all XP to 0\n"
+                      f"• Reset all Word-Up points to 0\n"
+                      f"• Preserve ranks and other stats\n\n"
+                      f"**Force Reset:** {'Yes' if force else 'No'}\n\n"
+                      f"React with ✅ to confirm or ❌ to cancel.",
+            color_code="yellow"
+        )
+        view = LayoutView()
+        view.add_item(container)
+        message = await ctx.send(view=view)
+
+        await message.add_reaction("✅")
+        await message.add_reaction("❌")
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["✅", "❌"] and reaction.message.id == message.id
+
+        try:
+            reaction, user = await self.bot.wait_for('reaction_add', timeout=30.0, check=check)
+
+            if str(reaction.emoji) == "❌":
+                container = create_simple_message("❌ Monthly reset cancelled.")
+                view = LayoutView()
+                view.add_item(container)
+                await message.edit(view=view)
+                return
+
+        except asyncio.TimeoutError:
+            container = create_error_message("Timeout", "Confirmation timed out. Reset cancelled.")
+            view = LayoutView()
+            view.add_item(container)
+            await message.edit(view=view)
+            return
+
+        # Perform the reset
+        status_container = create_info_card(
+            title="🌙 Monthly Reset In Progress...",
+            description="Archiving data and resetting XP...",
+            color_code="blue"
+        )
+        view = LayoutView()
+        view.add_item(status_container)
+        await message.edit(view=view)
+
+        # Archive previous month's data
+        previous_month = current_date.month - 1 if current_date.month > 1 else 12
+        previous_year = current_date.year if current_date.month > 1 else current_date.year - 1
+
+        archived_count = 0
+        if self.bot.neon_db and self.bot.neon_db.pool:
+            logger.info(f"📦 Archiving data from {previous_month}/{previous_year}...")
+            success, archived_count = await self.bot.neon_db.archive_monthly_data(
+                self.bot.member_data.data,
+                previous_month,
+                previous_year
+            )
+            if not success:
+                logger.error("❌ Failed to archive monthly data!")
+
+        # Reset XP while preserving ranks
+        reset_count = 0
+        total_guilds = len(self.bot.member_data.data)
+        preserved_ranks = 0
+
+        for guild_id, guild_data in self.bot.member_data.data.items():
+            # Get the guild object to check member roles
+            guild = self.bot.get_guild(int(guild_id))
+
+            for member_id, member_data_entry in guild_data.items():
+                # Preserve the current rank before resetting XP
+                current_rank = member_data_entry.get('rank', 'New Lifeform')
+                current_rank_icon = member_data_entry.get('rank_icon', '🥚')
+
+                # Check if member has a rank role in Discord (verify rank is legitimate)
+                if guild:
+                    member = guild.get_member(int(member_id))
+                    if member:
+                        # Find the highest rank role the member has
+                        highest_rank = None
+                        highest_rank_xp = -1
+
+                        for rank_data in COZY_RANKS:
+                            role_id = rank_data.get('role_id')
+                            if role_id:
+                                role = guild.get_role(role_id)
+                                if role and role in member.roles:
+                                    if rank_data['required_xp'] > highest_rank_xp:
+                                        highest_rank = rank_data['name']
+                                        highest_rank_xp = rank_data['required_xp']
+                                        current_rank_icon = rank_data['icon']
+
+                        # If member has a rank role, use that as their preserved rank
+                        if highest_rank:
+                            current_rank = highest_rank
+                            preserved_ranks += 1
+
+                # Reset XP but keep the rank
+                if member_data_entry.get('xp', 0) > 0:
+                    member_data_entry['xp'] = 0
+                    reset_count += 1
+
+                # Preserve rank and icon (don't reset to "New Lifeform")
+                member_data_entry['rank'] = current_rank
+                member_data_entry['rank_icon'] = current_rank_icon
+
+                # Reset Word-Up points
+                if member_data_entry.get('word_up_points', 0) > 0:
+                    member_data_entry['word_up_points'] = 0
+
+        # Mark reset as completed
+        self.bot.last_monthly_reset = current_date
+        self.bot.save_bot_metadata()
+
+        # Force save the changes
+        await self.bot.member_data.save_data_async(force=True)
+
+        logger.info(f"✅ Preserved ranks for {preserved_ranks} members based on Discord roles")
+
+        logger.info(f"✅ Manual monthly XP reset completed by {ctx.author}: {reset_count} members")
+
+        # Send success message
+        container = create_success_message(
+            "✅ Monthly Reset Complete!",
+            f"**Reset Summary:**\n"
+            f"• Archived: {archived_count} members to database\n"
+            f"• Reset XP: {reset_count} members\n"
+            f"• Ranks Preserved: {preserved_ranks} members\n"
+            f"• Guilds: {total_guilds}\n"
+            f"• Month: {previous_month}/{previous_year}\n\n"
+            f"**Reset Date:** {current_date.strftime('%B %d, %Y')}\n"
+            f"**Forced:** {'Yes' if force else 'No'}"
+        )
+        view = LayoutView()
+        view.add_item(container)
+        await message.edit(view=view)
+
+        # Announce in current channel
+        announcement = create_info_card(
+            title="🌙 MONTHLY XP RESET",
+            description=f"**{current_date.strftime('%B %Y')}** XP reset completed!\n\n"
+                      f"• All XP has been reset to 0\n"
+                      f"• Word-Up points reset to 0\n"
+                      f"• Ranks and multipliers are preserved\n"
+                      f"• Previous month's data archived\n"
+                      f"• New monthly competition begins now!",
+            footer="Higher ranks = better multipliers for the new month!",
+            color_code="blue"
+        )
+        view = LayoutView()
+        view.add_item(announcement)
+        await ctx.send(view=view)
+
+    @commands.command(name='purge_members', aliases=['purge'])
+    @commands.has_permissions(administrator=True)
+    async def purge_non_members(self, ctx):
+        """Remove members who left the server from database."""
+        from discord.ui import LayoutView
+
+        # Send initial status
+        status = create_info_card(
+            title="🧹 Member Purge",
+            description="Checking for members who left the server...",
+            color_code="blue"
+        )
+        view = LayoutView()
+        view.add_item(status)
+        message = await ctx.send(view=view)
+
+        try:
+            # Run purge
+            purged_count = await self.bot.member_data.purge_non_members(ctx.guild)
+
+            # Send result
+            if purged_count > 0:
+                result = create_success_message(
+                    f"🧹 Database Purged",
+                    f"Successfully removed **{purged_count}** members who left the server.\n\n"
+                    f"**Database Updated:** ✅\n"
+                    f"**Backup Synced:** ✅"
+                )
+            else:
+                result = create_success_message(
+                    f"✅ Database Clean",
+                    f"No members to purge. All database entries are current server members."
+                )
+
+            view = LayoutView()
+            view.add_item(result)
+            await message.edit(view=view)
+
+        except Exception as e:
+            logger.error(f"Error during member purge: {e}")
+            error = create_error_message(
+                "Purge Failed",
+                f"An error occurred: {str(e)}"
+            )
+            view = LayoutView()
+            view.add_item(error)
+            await message.edit(view=view)
 
 
 async def setup(bot):

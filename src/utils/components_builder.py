@@ -357,13 +357,15 @@ class LeaderboardView(View):
         self.valid_categories = {
             "xp": ("EXPERIENCE POINTS", "XP"),
             "messages": ("MESSAGES SENT", "MSG"),
-            "voice": ("VOICE TIME", "MIN")
+            "voice": ("VOICE TIME", "MIN"),
+            "wordup": ("WORD UP POINTS", "PTS")
         }
 
         self.category_mapping = {
             "xp": "xp",
             "messages": "messages_sent",
-            "voice": "voice_minutes"
+            "voice": "voice_minutes",
+            "wordup": "word_up_points"
         }
 
         # Create buttons
@@ -382,16 +384,23 @@ class LeaderboardView(View):
             style=ButtonStyle.gray,
             custom_id="lb_voice"
         )
+        self.wordup_button = Button(
+            label="word up",
+            style=ButtonStyle.gray,
+            custom_id="lb_wordup"
+        )
 
         # Set callbacks
         self.xp_button.callback = self.xp_callback
         self.messages_button.callback = self.messages_callback
         self.voice_button.callback = self.voice_callback
+        self.wordup_button.callback = self.wordup_callback
 
         # Add buttons to view
         self.add_item(self.xp_button)
         self.add_item(self.messages_button)
         self.add_item(self.voice_button)
+        self.add_item(self.wordup_button)
 
         # Update button styles based on current category
         self._update_button_styles()
@@ -402,6 +411,7 @@ class LeaderboardView(View):
         self.xp_button.style = ButtonStyle.gray
         self.messages_button.style = ButtonStyle.gray
         self.voice_button.style = ButtonStyle.gray
+        self.wordup_button.style = ButtonStyle.gray
 
         # Highlight current category (keep gray but will be visually distinct in Discord)
         if self.current_category == "xp":
@@ -410,6 +420,8 @@ class LeaderboardView(View):
             self.messages_button.disabled = True
         elif self.current_category == "voice":
             self.voice_button.disabled = True
+        elif self.current_category == "wordup":
+            self.wordup_button.disabled = True
 
     async def _generate_and_update(self, interaction: discord.Interaction, category: str):
         """Generate leaderboard image for category and update message."""
@@ -467,6 +479,7 @@ class LeaderboardView(View):
             self.xp_button.disabled = False
             self.messages_button.disabled = False
             self.voice_button.disabled = False
+            self.wordup_button.disabled = False
 
             # Disable current category button
             if category == "xp":
@@ -475,6 +488,8 @@ class LeaderboardView(View):
                 self.messages_button.disabled = True
             elif category == "voice":
                 self.voice_button.disabled = True
+            elif category == "wordup":
+                self.wordup_button.disabled = True
 
             # Update message with new image and buttons
             await interaction.edit_original_response(attachments=[file], view=self)
@@ -493,6 +508,10 @@ class LeaderboardView(View):
     async def voice_callback(self, interaction: discord.Interaction):
         """Handle voice button click."""
         await self._generate_and_update(interaction, "voice")
+
+    async def wordup_callback(self, interaction: discord.Interaction):
+        """Handle Word Up button click."""
+        await self._generate_and_update(interaction, "wordup")
 
     async def on_timeout(self):
         """Disable buttons when view times out."""
@@ -527,7 +546,7 @@ def create_rank_perks_info(faq_channel_id: Optional[int] = None) -> tuple[Contai
     container.add_item(TextDisplay(
         content="**How It Works**\n"
                 "Earn XP by chatting, being in voice channels, and reacting to messages.\n"
-                "As you gain XP, you'll rank up through the military hierarchy."
+                "As you gain XP, you'll rank up through our ranking system."
     ))
 
     container.add_item(Separator(spacing=SeparatorSpacing.small))

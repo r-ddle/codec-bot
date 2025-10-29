@@ -1,15 +1,14 @@
 """
-Constants for the MGS Discord Bot including ranks, rewards, and themed messages.
-Outer Heaven: Exiled Soldiers
+Constants for Kira - r.ddle's Exile Server Bot
 """
 from typing import List, Dict, Any
 
 # ═══════════════════════════════════════════════════════════════════
 # SERVER IDENTITY
 # ═══════════════════════════════════════════════════════════════════
-SERVER_NAME = "Outer Heaven: Exiled Soldiers"
+SERVER_NAME = "Exile"
 SERVER_OWNER = "r.ddle"
-SERVER_FOOTER = "© 2025 OUTER HEAVEN: EXILED SOLDIERS"
+SERVER_FOOTER = "© 2025 EXILE - r.ddle's Hangout"
 
 # ═══════════════════════════════════════════════════════════════════
 # COMMAND NAMES (Customize command names here)
@@ -50,19 +49,20 @@ MGS_QUOTES: List[str] = [
 
 
 
-# XP-BASED RANK PROGRESSION SYSTEM (Unified)
-MGS_RANKS: List[Dict[str, Any]] = [
-    {"name": "Rookie", "required_xp": 0, "icon": "🎖️", "role_name": None},
-    {"name": "Private", "required_xp": 100, "icon": "🪖", "role_name": "Private"},
-    {"name": "Specialist", "required_xp": 500, "icon": "🎯", "role_name": "Specialist"},
-    {"name": "Corporal", "required_xp": 1000, "icon": "⭐", "role_name": "Corporal"},
-    {"name": "Sergeant", "required_xp": 1800, "icon": "🏅", "role_name": "Sergeant"},
-    {"name": "Lieutenant", "required_xp": 3000, "icon": "🎖️", "role_name": "Lieutenant"},
-    {"name": "Captain", "required_xp": 5000, "icon": "💫", "role_name": "Captain"},
-    {"name": "Major", "required_xp": 8000, "icon": "⚡", "role_name": "Major"},
-    {"name": "Colonel", "required_xp": 12000, "icon": "🌟", "role_name": "Colonel"},
-    {"name": "FOXHOUND", "required_xp": 18000, "icon": "🦊", "role_name": "Foxhound"}
+# XP-BASED RANK PROGRESSION SYSTEM (Unified) - Cozy Ranks with Role IDs
+COZY_RANKS: List[Dict[str, Any]] = [
+    {"name": "New Lifeform", "required_xp": 0, "icon": "🥚", "role_id": 1423506533148266568},
+    {"name": "Grass Kisser", "required_xp": 50, "icon": "🌱", "role_id": 1423506533148266569},
+    {"name": "Busy Bee", "required_xp": 100, "icon": "🐝", "role_id": 1423506533148266570},
+    {"name": "Active Af", "required_xp": 500, "icon": "⚡", "role_id": 1423506533148266571},
+    {"name": "Computer Cuddler", "required_xp": 1500, "icon": "💻", "role_id": 1423506533148266572},
+    {"name": "Discord Dweller", "required_xp": 2500, "icon": "📡", "role_id": 1423506533148266573},
+    {"name": "Keyboard Philosopher", "required_xp": 5000, "icon": "⌨️", "role_id": 1423506533148266574},
+    {"name": "Server Resident", "required_xp": 8000, "icon": "🏠", "role_id": 1423506533148266575},
+    {"name": "Discord Degenerate", "required_xp": 12000, "icon": "🔥", "role_id": 1423506533148266577},
+    {"name": "Anti-Grass Toucher", "required_xp": 20000, "icon": "🧠", "role_id": 1423506533224022067}
 ]
+
 
 # Default member data structure (single source of truth)
 DEFAULT_MEMBER_DATA: Dict[str, Any] = {
@@ -85,18 +85,18 @@ DEFAULT_MEMBER_DATA: Dict[str, Any] = {
     "word_up_points": 0
 }
 
-# XP Multipliers based on rank
+# XP Multipliers based on Cozy Rank
 RANK_XP_MULTIPLIERS = {
-    "Rookie": 1.0,
-    "Private": 1.0,
-    "Specialist": 1.1,
-    "Corporal": 1.2,
-    "Sergeant": 1.3,
-    "Lieutenant": 1.4,
-    "Captain": 1.5,
-    "Major": 1.6,
-    "Colonel": 1.7,
-    "FOXHOUND": 2.0
+    "New Lifeform": 1.0,
+    "Grass Kisser": 1.0,
+    "Busy Bee": 1.1,
+    "Active Af": 1.2,
+    "Computer Cuddler": 1.3,
+    "Discord Dweller": 1.4,
+    "Keyboard Philosopher": 1.5,
+    "Server Resident": 1.6,
+    "Discord Degenerate": 1.7,
+    "Anti-Grass Toucher": 2.0
 }
 
 # Streak XP bonuses (bonus XP per message based on streak days)
@@ -111,11 +111,11 @@ STREAK_XP_BONUSES = {
 
 # Activity rewards
 ACTIVITY_REWARDS: Dict[str, Dict[str, int]] = {
-    "message": {"xp": 2},
+    "message": {"xp": 5},
     "voice_minute": {"xp": 2},
-    "reaction": {"xp": 1},
+    "reaction": {"xp": 2},
     "reaction_received": {"xp": 3},
-    "daily_bonus": {"xp": 100}
+    "daily_bonus": {"xp": 150}
 }
 
 # Contact administrators for support

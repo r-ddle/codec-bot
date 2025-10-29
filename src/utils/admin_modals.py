@@ -226,8 +226,8 @@ class SetRankModal(ui.Modal, title="set member rank"):
 
             if not rank_data:
                 # List available ranks
-                from config.constants import MGS_RANKS
-                available_ranks = ", ".join([r["name"].lower() for r in MGS_RANKS])
+                from config.constants import COZY_RANKS
+                available_ranks = ", ".join([r["name"].lower() for r in COZY_RANKS])
                 await interaction.response.send_message(
                     f"invalid rank name. available ranks:\n{available_ranks}",
                     ephemeral=True

@@ -1,10 +1,11 @@
 # daily_supply_gen.py
 # Author: Tom & GitHub Copilot + Claude
-# MGS Codec-style Daily Supply Drop & Promotion card generator - REBUILT
+# Cozy Hangout Bot - Daily Supply Drop & Promotion card generator
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 import random
 import unicodedata
+from config.constants import SERVER_FOOTER
 
 # === UNICODE SANITIZATION ===
 def sanitize_username(username):
@@ -532,7 +533,7 @@ def generate_daily_supply_card(username, xp_reward,
     draw.text((60, footer_y), "Return in 24:00:00 for next supply drop",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 290, footer_y), "Outer Heaven: Exiled Units",
+    draw.text((width - 290, footer_y), SERVER_FOOTER,
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===
@@ -641,7 +642,7 @@ def generate_promotion_card(username, old_rank, new_rank, current_xp, role_grant
     draw.text((60, footer_y), "Keep earning XP to reach the next rank",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    draw.text((width - 310, footer_y), "Outer Heaven: Exiled Units",
+    draw.text((width - 310, footer_y), SERVER_FOOTER,
              fill=CODEC_GREEN_DIM, font=font_small)
 
     # === FRAME & EFFECTS ===

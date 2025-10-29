@@ -3,7 +3,7 @@ Discord role management utilities for rank-based role assignment.
 """
 import discord
 from typing import Optional
-from config.constants import MGS_RANKS
+from config.constants import COZY_RANKS
 from config.settings import logger
 
 
@@ -21,26 +21,26 @@ async def update_member_roles(member: discord.Member, new_rank: str) -> bool:
     try:
         guild = member.guild
 
-        # Get the role name for the new rank
-        new_role_name: Optional[str] = None
-        for rank_data in MGS_RANKS:
+        # Get the role ID for the new rank
+        new_role_id: Optional[int] = None
+        for rank_data in COZY_RANKS:
             if rank_data["name"] == new_rank:
-                new_role_name = rank_data["role_name"]
+                new_role_id = rank_data.get("role_id")
                 break
 
-        # Add new role if not Rookie (keep old roles stacked)
-        if new_role_name:
-            new_role = discord.utils.get(guild.roles, name=new_role_name)
+        # Add new role if role_id exists
+        if new_role_id:
+            new_role = guild.get_role(new_role_id)
 
             if new_role:
                 await member.add_roles(new_role, reason=f"Promoted to {new_rank}")
-                logger.info(f"Added {new_role_name} role to {member.name}")
+                logger.info(f"Added {new_rank} role to {member.name}")
                 return True
             else:
-                logger.error(f"Role '{new_role_name}' not found in server!")
+                logger.error(f"Role with ID {new_role_id} not found in server!")
                 return False
         else:
-            logger.info(f"{member.name} is Rookie - no role assigned")
+            logger.info(f"{member.name} is at first rank - no role assigned")
             return True
 
     except discord.Forbidden:

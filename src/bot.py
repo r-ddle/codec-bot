@@ -1,23 +1,23 @@
 ﻿"""
-MGS Discord Bot - Main entry point
-A Metal Gear Solid-themed Discord bot for Outer Heaven: Exiled Soldiers
+Kira - Custom Discord Bot for Exile
+A chill hangout bot made by r.ddle for Exile server
 
 This bot features:
 - XP-based ranking system
 - Automatic Discord role assignment based on XP
 - Daily bonuses and leaderboards
-- MGS-themed commands and interactions
+- Custom commands and interactions
 - Server events
 
-Exclusive to: Outer Heaven: Exiled Soldiers
+Exclusive to: Exile - r.ddle's hangout server
 Owner: r.ddle
 """
 import asyncio
 from config.settings import TOKEN, logger
-from core.bot_instance import MGSBot
+from core.bot_instance import KiraBot
 
 
-async def load_extensions(bot: MGSBot):
+async def load_extensions(bot: KiraBot):
     """Load all cogs (command modules and event handlers)."""
     extensions = [
         # Command cogs
@@ -29,6 +29,7 @@ async def load_extensions(bot: MGSBot):
         'cogs.server_event',  # Weekly server events
         'cogs.word_up',  # Word-Up game moderation
         'cogs.utility',  # Utility commands
+        'cogs.fun_commands',  # Fun games and entertainment
         'cogs.rich_presence',  # Rich Presence management
         # Event handlers
         'events.member_events',
@@ -52,11 +53,11 @@ async def main():
         logger.error("Please add DISCORD_TOKEN=your_bot_token to your .env file")
         return
 
-    bot = MGSBot()
+    bot = KiraBot()
 
     async with bot:
         await load_extensions(bot)
-        logger.info(" Starting MGS Discord Bot with XP-Based Ranking...")
+        logger.info(" Starting Kira Discord Bot with XP-Based Ranking...")
         try:
             await bot.start(TOKEN)
         except Exception as e:

@@ -122,6 +122,50 @@ class MemberData:
         """Schedule a data save operation."""
         self._pending_saves = True
 
+    async def purge_non_members(self, guild) -> int:
+        """
+        Remove members who left the server from the database.
+
+        Args:
+            guild: Discord guild object
+
+        Returns:
+            Number of members purged
+        """
+        guild_key = str(guild.id)
+
+        if guild_key not in self.data:
+            logger.info(f"No data found for guild {guild_key}")
+            return 0
+
+        guild_data = self.data[guild_key]
+        members_to_remove = []
+
+        # Check each member in database
+        for member_id_str in guild_data.keys():
+            try:
+                member_id = int(member_id_str)
+                # Check if member still exists in guild
+                if not guild.get_member(member_id):
+                    members_to_remove.append(member_id_str)
+            except (ValueError, AttributeError):
+                continue
+
+        # Remove members who left
+        purged_count = 0
+        for member_id_str in members_to_remove:
+            del guild_data[member_id_str]
+            purged_count += 1
+
+        if purged_count > 0:
+            logger.info(f"🧹 Purged {purged_count} members who left from guild {guild_key}")
+            # Save after purging
+            await self.save_data_async(force=True)
+        else:
+            logger.info(f"✅ No members to purge from guild {guild_key}")
+
+        return purged_count
+
     def get_member_data(self, member_id: int, guild_id: int) -> Dict[str, Any]:
         """
         Get member data for specific guild.

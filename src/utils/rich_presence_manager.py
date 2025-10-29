@@ -25,7 +25,7 @@ LARGE_IMAGE_URL = "https://media1.tenor.com/m/VOYttVmmcKIAAAAC/pixel-art.gif"  #
 SMALL_IMAGE_URL = "https://cdn.discordapp.com/avatars/1040597411116089424/98393527a622a959476a47dd4c955edd.webp?size=1024"  # r.ddle avatar
 
 # Button URL
-EXILED_UNITS_URL = "https://exiledunits.vercel.app/"
+EXILE_SERVER_URL = "https://exiledunits.vercel.app/"
 
 # Activity type enum (discord.ActivityType)
 # 0 = PLAYING, 1 = STREAMING, 2 = LISTENING, 3 = WATCHING, 4 = CUSTOM, 5 = COMPETING
@@ -130,9 +130,9 @@ class RichPresenceManager:
                 # Assets - Using external URLs
                 assets={
                     "large_image": LARGE_IMAGE_URL,
-                    "large_text": "Kiro - Your Chill Hangout Bot",
+                    "large_text": "Kira - r.ddle's Hangout Bot",
                     "small_image": SMALL_IMAGE_URL,
-                    "small_text": "Exiled Units",
+                    "small_text": "Exile",
                 },
 
                 # Timestamps
@@ -148,7 +148,7 @@ class RichPresenceManager:
 
                 # Single button to server website
                 buttons=[
-                    {"label": "Join Exiled Units", "url": EXILED_UNITS_URL},
+                    {"label": "Join Exile", "url": EXILE_SERVER_URL},
                 ],
             )
 
@@ -184,9 +184,9 @@ class RichPresenceManager:
                 # Assets - Using external URLs
                 assets={
                     "large_image": LARGE_IMAGE_URL,
-                    "large_text": "Kiro - Your Chill Hangout Bot",
+                    "large_text": "Kira - r.ddle's Hangout Bot",
                     "small_image": SMALL_IMAGE_URL,
-                    "small_text": "Exiled Units",
+                    "small_text": "Exile",
                 },
 
                 # Timestamps
@@ -202,7 +202,7 @@ class RichPresenceManager:
 
                 # Single button to server website
                 buttons=[
-                    {"label": "Visit Exiled Units", "url": EXILED_UNITS_URL},
+                    {"label": "Visit Exile", "url": EXILE_SERVER_URL},
                 ],
             )
 
@@ -287,7 +287,7 @@ class RichPresenceManager:
                     "start": int(datetime.now().timestamp()),
                 },
                 buttons=[
-                    {"label": "Visit Exiled Units", "url": EXILED_UNITS_URL},
+                    {"label": "Visit Exile", "url": EXILE_SERVER_URL},
                 ],
             )
 

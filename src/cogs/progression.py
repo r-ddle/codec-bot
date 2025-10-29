@@ -10,7 +10,7 @@ import asyncio
 from io import BytesIO
 
 from utils.formatters import format_number, make_progress_bar
-from utils.rank_system import get_rank_data_by_name, get_next_rank_info, MGS_RANKS
+from utils.rank_system import get_rank_data_by_name, get_next_rank_info
 from utils.role_manager import update_member_roles
 from utils.image_gen import generate_rank_card
 from utils.daily_supply_gen import generate_daily_supply_card, generate_promotion_card
@@ -25,6 +25,7 @@ from utils.components_builder import (
     LeaderboardView
 )
 from config.settings import logger
+from config.constants import COZY_RANKS
 
 
 class Progression(commands.Cog):
@@ -145,13 +146,13 @@ class Progression(commands.Cog):
 
                 # Find current rank index
                 current_rank_index = 0
-                for i, rank_info in enumerate(MGS_RANKS):
+                for i, rank_info in enumerate(COZY_RANKS):
                     if rank_info.get("name") == current_rank_name:
                         current_rank_index = i
                         break
 
                 # Get next rank if not at max
-                next_rank = MGS_RANKS[current_rank_index + 1] if current_rank_index < len(MGS_RANKS) - 1 else None
+                next_rank = COZY_RANKS[current_rank_index + 1] if current_rank_index < len(COZY_RANKS) - 1 else None
 
                 # Calculate XP needed for progress bar
                 xp_max = next_rank.get("required_xp", current_xp) if next_rank else current_xp
@@ -251,16 +252,22 @@ class Progression(commands.Cog):
         # Show typing indicator while generating
         async with ctx.typing():
             try:
-                # Format data for image generator
+                # Format data for image generator (skip members who left)
                 formatted_data = []
-                for i, (member_id, data) in enumerate(leaderboard_data, 1):
+                rank = 1
+                for member_id, data in leaderboard_data:
                     try:
                         member = ctx.guild.get_member(int(member_id))
-                        name = member.display_name if member else f"unknown"
+                        # Skip members who have left the server
+                        if not member:
+                            continue
+
+                        name = member.display_name
                         value = data.get(sort_field, 0)
                         rank_icon = data.get("rank_icon", "")
 
-                        formatted_data.append((i, name, value, rank_icon))
+                        formatted_data.append((rank, name, value, rank_icon))
+                        rank += 1
                     except Exception:
                         continue
 

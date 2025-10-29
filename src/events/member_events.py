@@ -74,7 +74,7 @@ class MemberEvents(commands.Cog):
             # Create welcome section
             section = Section()
             welcome_text = TextDisplay(
-                content=f"# welcome to outer heaven\n**{member.display_name}**, welcome to our community\n\ncheck out the buttons below for important information"
+                content=f"# welcome to exile\n**{member.display_name}**, welcome to our community\n\ncheck out the buttons below for important information"
             )
             section.add_item(welcome_text)
             section.add_item(thumbnail)
@@ -149,8 +149,8 @@ class MemberEvents(commands.Cog):
     async def _get_started_callback(self, interaction: discord.Interaction):
         """Handle Get Started button click."""
         await interaction.response.send_message(
-            "welcome to outer heaven\n\n"
-            "start chatting to earn xp and rank up through the military hierarchy\n"
+            "welcome to exile\n\n"
+            "start chatting to earn xp and rank up through our ranking system\n"
             "use `!status` to check your progress\n"
             "use `!help` to see available commands",
             ephemeral=True

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Slash Commands cog - Application command implementations.
 """
 import discord
@@ -9,7 +9,7 @@ from io import BytesIO
 import asyncio
 
 from utils.formatters import format_number
-from config.constants import MGS_RANKS
+from config.constants import COZY_RANKS
 from utils.daily_supply_gen import generate_daily_supply_card, generate_promotion_card
 from utils.server_event_gen import generate_event_progress
 from utils.rank_system import get_rank_data_by_name
@@ -60,10 +60,10 @@ class SlashCommands(commands.Cog):
         member_data = self.bot.member_data.get_member_data(member_id, guild_id)
 
         # Show current Discord role if any
-        rank_roles = [rank["role_name"] for rank in MGS_RANKS if rank["role_name"]]
+        rank_role_ids = [rank["role_id"] for rank in COZY_RANKS if rank.get("role_id")]
         current_role = None
         for role in interaction.user.roles:
-            if role.name in rank_roles:
+            if role.id in rank_role_ids:
                 current_role = role.name
                 break
 
@@ -108,18 +108,18 @@ class SlashCommands(commands.Cog):
 
             # Calculate XP to next rank
             current_rank_index = 0
-            for i, rank_info in enumerate(MGS_RANKS):
+            for i, rank_info in enumerate(COZY_RANKS):
                 if rank_info.get("name") == current_rank_name:
                     current_rank_index = i
                     break
 
-            next_rank = MGS_RANKS[current_rank_index + 1] if current_rank_index < len(MGS_RANKS) - 1 else None
+            next_rank = COZY_RANKS[current_rank_index + 1] if current_rank_index < len(COZY_RANKS) - 1 else None
 
             xp_progress = ""
             if next_rank:
                 current_xp = member_data.get('xp', 0)
                 required_xp = next_rank.get("required_xp", 0)
-                current_rank_xp = MGS_RANKS[current_rank_index].get("required_xp", 0)
+                current_rank_xp = COZY_RANKS[current_rank_index].get("required_xp", 0)
                 progress_xp = current_xp - current_rank_xp
                 needed_xp = required_xp - current_rank_xp
                 percentage = int((progress_xp / needed_xp) * 100) if needed_xp > 0 else 100

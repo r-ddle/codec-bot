@@ -1,5 +1,5 @@
 """
-Core bot instance and task loops for the MGS Discord Bot.
+Core bot instance and task loops for Kira - r.ddle's hangout bot.
 """
 import discord
 from discord.ext import tasks, commands
@@ -18,8 +18,8 @@ from utils.components_builder import create_info_card
 from utils.rich_presence_manager import RichPresenceManager
 
 
-class MGSBot(commands.Bot):
-    """Main bot class with task loops and tactical word detection."""
+class KiraBot(commands.Bot):
+    """Main bot class with task loops and custom hangout bot features."""
 
     def __init__(self):
         intents = discord.Intents.all()
@@ -182,6 +182,22 @@ class MGSBot(commands.Bot):
             return
 
         logger.info(f"🌙 Starting monthly XP reset for {current_date.strftime('%B %Y')}")
+
+        # Archive previous month's data BEFORE resetting
+        previous_month = current_date.month - 1 if current_date.month > 1 else 12
+        previous_year = current_date.year if current_date.month > 1 else current_date.year - 1
+
+        if self.neon_db and self.neon_db.pool:
+            logger.info(f"📦 Archiving data from {previous_month}/{previous_year}...")
+            success, archived_count = await self.neon_db.archive_monthly_data(
+                self.member_data.data,
+                previous_month,
+                previous_year
+            )
+            if success:
+                logger.info(f"✅ Archived {archived_count} members to monthly_archives")
+            else:
+                logger.error("❌ Failed to archive monthly data!")
 
         reset_count = 0
         total_guilds = 0

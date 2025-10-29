@@ -1,5 +1,5 @@
 # profile_card_new.py
-# Enhanced MGS Codec-style profile card generator
+# Enhanced Cozy Hangout Bot profile card generator
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 import io
@@ -8,6 +8,7 @@ import random
 import unicodedata
 from datetime import datetime
 from typing import Optional, List
+from config.constants import SERVER_FOOTER
 
 # === IMPORT SHARED FUNCTIONS FROM image_gen.py ===
 from .image_gen import (
@@ -400,7 +401,7 @@ def generate_profile_new(
                   primary_font=font_small, fill=CODEC_GREEN_TEXT)
 
     # Center: Main footer
-    footer_text = "<< OUTER HEAVEN: EXILED UNITS  >>"
+    footer_text = f"<< {SERVER_FOOTER.upper()}  >>"
     try:
         footer_bbox = draw.textbbox((0, 0), footer_text, font=font_small)
         footer_width = footer_bbox[2] - footer_bbox[0]

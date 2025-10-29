@@ -118,6 +118,33 @@ class NeonDatabase:
                 )
             ''')
 
+            # Monthly archive table - stores member data before monthly resets
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS monthly_archives (
+                    archive_id SERIAL PRIMARY KEY,
+                    archive_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    month INTEGER NOT NULL,
+                    year INTEGER NOT NULL,
+                    member_id BIGINT NOT NULL,
+                    guild_id BIGINT NOT NULL,
+                    xp INTEGER DEFAULT 0,
+                    rank VARCHAR(50),
+                    rank_icon VARCHAR(10),
+                    messages_sent INTEGER DEFAULT 0,
+                    voice_minutes INTEGER DEFAULT 0,
+                    reactions_given INTEGER DEFAULT 0,
+                    reactions_received INTEGER DEFAULT 0,
+                    word_up_points INTEGER DEFAULT 0,
+                    daily_streak INTEGER DEFAULT 0
+                )
+            ''')
+
+            # Create index for monthly archives
+            await conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_monthly_archives
+                ON monthly_archives(guild_id, year DESC, month DESC, xp DESC)
+            ''')
+
             logger.info("📊 Database schema initialized")
 
     async def sync_member_data(self, member_id: int, guild_id: int, data: Dict[str, Any]):
@@ -204,7 +231,7 @@ class NeonDatabase:
 
         return date_value
 
-    async def backup_all_data(self, json_data: Dict[str, Dict[str, Any]], target_guild_id: Optional[int] = None, recalculate_ranks: bool = False) -> bool:
+    async def backup_all_data(self, json_data: Dict[str, Dict[str, Any]], target_guild_id: Optional[int] = None, recalculate_ranks: bool = False, guild=None) -> bool:
         """
         Backup all member data from JSON to Neon.
 
@@ -212,6 +239,7 @@ class NeonDatabase:
             json_data: Complete member data dictionary
             target_guild_id: If specified, only backup data for this guild
             recalculate_ranks: If True, recalculate all ranks based on XP before syncing
+            guild: Discord guild object to validate current members (optional)
 
         Returns:
             True if backup successful
@@ -233,6 +261,7 @@ class NeonDatabase:
                 filtered_data = json_data
 
             total_members = 0
+            skipped_members = 0
             guild_count = len(filtered_data)
             # Import here to avoid circular dependency
             if recalculate_ranks:
@@ -241,6 +270,12 @@ class NeonDatabase:
 
             for guild_id, members in filtered_data.items():
                 for member_id, data in members.items():
+                    # If guild object provided, verify member still exists in guild
+                    if guild and guild.id == int(guild_id):
+                        if not guild.get_member(int(member_id)):
+                            skipped_members += 1
+                            continue
+
                     # Recalculate rank if requested
                     if recalculate_ranks:
                         correct_rank, correct_icon = calculate_rank_from_xp(data.get('xp', 0))
@@ -257,6 +292,8 @@ class NeonDatabase:
                     VALUES ($1, $2, $3, $4)
                 ''', total_members, guild_count, 'guild_backup' if target_guild_id else 'full_backup' if not recalculate_ranks else 'full_backup_with_rank_fix', 'success')
 
+            if skipped_members > 0:
+                logger.info(f"⏭️ Skipped {skipped_members} members who left the server")
             if target_guild_id:
                 logger.info(f"✅ Backed up {total_members} members from guild {target_guild_id} to Neon")
             else:
@@ -500,3 +537,104 @@ class NeonDatabase:
         except Exception as e:
             logger.error(f"Error loading member data from Neon: {e}")
             return {}
+
+    async def archive_monthly_data(self, json_data: Dict[str, Dict[str, Any]], month: int, year: int, target_guild_id: Optional[int] = None) -> Tuple[bool, int]:
+        """
+        Archive current member data before monthly reset.
+
+        Args:
+            json_data: Complete member data dictionary
+            month: Month number (1-12)
+            year: Year (e.g., 2025)
+            target_guild_id: If specified, only archive data for this guild
+
+        Returns:
+            Tuple of (success: bool, archived_count: int)
+        """
+        if not self.pool:
+            logger.warning("Neon database not connected - skipping monthly archive")
+            return False, 0
+
+        try:
+            # Filter data to only the target guild if specified
+            if target_guild_id:
+                target_guild_str = str(target_guild_id)
+                if target_guild_str in json_data:
+                    filtered_data = {target_guild_str: json_data[target_guild_str]}
+                else:
+                    logger.warning(f"Target guild {target_guild_id} not found in data - skipping archive")
+                    return False, 0
+            else:
+                filtered_data = json_data
+
+            archived_count = 0
+
+            async with self.pool.acquire() as conn:
+                for guild_id, members in filtered_data.items():
+                    for member_id, data in members.items():
+                        # Only archive members with XP > 0 (active members)
+                        if data.get('xp', 0) > 0:
+                            await conn.execute('''
+                                INSERT INTO monthly_archives (
+                                    month, year, member_id, guild_id,
+                                    xp, rank, rank_icon,
+                                    messages_sent, voice_minutes,
+                                    reactions_given, reactions_received,
+                                    word_up_points, daily_streak
+                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                            ''',
+                            month, year,
+                            int(member_id), int(guild_id),
+                            data.get('xp', 0),
+                            data.get('rank', 'New Lifeform'),
+                            data.get('rank_icon', '🥚'),
+                            data.get('messages_sent', 0),
+                            data.get('voice_minutes', 0),
+                            data.get('reactions_given', 0),
+                            data.get('reactions_received', 0),
+                            data.get('word_up_points', 0),
+                            data.get('daily_streak', 0))
+                            archived_count += 1
+
+            if target_guild_id:
+                logger.info(f"📦 Archived {archived_count} members from guild {target_guild_id} for {month}/{year}")
+            else:
+                logger.info(f"📦 Archived {archived_count} members from {len(filtered_data)} guild(s) for {month}/{year}")
+
+            return True, archived_count
+
+        except Exception as e:
+            logger.error(f"❌ Error archiving monthly data: {e}")
+            return False, 0
+
+    async def get_monthly_leaderboard(self, guild_id: int, month: int, year: int, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get leaderboard from archived monthly data.
+
+        Args:
+            guild_id: Discord guild ID
+            month: Month number (1-12)
+            year: Year (e.g., 2025)
+            limit: Number of top members to return
+
+        Returns:
+            List of member data dictionaries sorted by XP
+        """
+        if not self.pool:
+            return []
+
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch('''
+                    SELECT member_id, xp, rank, rank_icon, messages_sent, voice_minutes
+                    FROM monthly_archives
+                    WHERE guild_id = $1 AND month = $2 AND year = $3
+                    ORDER BY xp DESC
+                    LIMIT $4
+                ''', guild_id, month, year, limit)
+
+                return [dict(row) for row in rows]
+
+        except Exception as e:
+            logger.error(f"Error fetching monthly leaderboard: {e}")
+            return []
