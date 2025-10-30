@@ -32,8 +32,8 @@ class ReactionEvents(commands.Cog):
             "reaction"
         )
 
-        # Send promotion notification if rank changed
-        if rank_changed:
+        # Send promotion notification if rank ACTUALLY changed (not same rank)
+        if rank_changed and old_rank_user != new_rank:
             await self._send_promotion_notification(reaction.message.channel, user, old_rank_user, new_rank, "reaction")
 
         # Give XP to message author if different person
@@ -48,8 +48,8 @@ class ReactionEvents(commands.Cog):
                 "reaction_received"
             )
 
-            # Send promotion notification if rank changed
-            if rank_changed_author:
+            # Send promotion notification if rank ACTUALLY changed (not same rank)
+            if rank_changed_author and old_rank_author != new_rank_author:
                 await self._send_promotion_notification(
                     reaction.message.channel, reaction.message.author, old_rank_author, new_rank_author, "reaction_received"
                 )

@@ -176,12 +176,64 @@ def safe_draw_text(draw, xy, text, primary_font, fallback_font=None, fill=(255,2
 
 # === AVATAR PROCESSING ===
 def download_avatar(url, size=(280, 280)):
-    """Downloads and resizes Discord avatar"""
+    """
+    Downloads and resizes Discord avatar.
+    Handles animated GIFs and WebP by converting to static image.
+
+    For animated avatars (a_*.gif), Discord provides static PNG versions
+    by replacing the file extension in the URL path itself.
+    """
     try:
-        r = requests.get(url, timeout=5)
-        avatar = Image.open(io.BytesIO(r.content)).convert("RGBA")
+        if not url:
+            return None
+
+        # Discord CDN: Convert animated avatars to static PNG
+        # For animated avatars (a_xxxxx.gif), replace extension with .png
+        # Example: a_7f4149863e347874b47a5367e1034bb4.gif -> a_7f4149863e347874b47a5367e1034bb4.png
+        if 'a_' in url and '.gif' in url:
+            # Replace .gif with .png in the URL path
+            url = url.replace('.gif', '.png')
+            # Add size parameter if not present
+            if '?' not in url:
+                url = url + '?size=512'
+        elif '.webp' in url:
+            # Replace .webp with .png
+            url = url.replace('.webp', '.png')
+            if '?' not in url:
+                url = url + '?size=512'
+        elif '.gif' in url:
+            # Non-animated gif, just add size
+            if '?' not in url:
+                url = url + '?size=512'
+
+        # Download with proper headers
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        r = requests.get(url, timeout=5, headers=headers)
+        r.raise_for_status()  # Raise error for bad status codes
+
+        # Check if we got valid image data
+        if not r.content or len(r.content) < 100:
+            print(f"⚠️ Avatar download returned empty or too small content")
+            return None
+
+        # Open image from bytes
+        img_data = io.BytesIO(r.content)
+        avatar = Image.open(img_data)
+
+        # Handle animated images by taking first frame (fallback)
+        if hasattr(avatar, 'is_animated') and avatar.is_animated:
+            avatar.seek(0)  # Go to first frame
+
+        # Convert to RGBA
+        avatar = avatar.convert("RGBA")
         avatar = avatar.resize(size, Image.Resampling.LANCZOS)
         return avatar
+    except requests.RequestException as e:
+        print(f"⚠️ Avatar download network error: {e}")
+        print(f"    URL attempted: {url}")
+        return None
     except Exception as e:
         print(f"⚠️ Avatar download failed: {e}")
         return None
@@ -458,14 +510,16 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max,
 
     # === STAT DISPLAYS ===
     # Row 1: Rank Name and XP
-    stat_spacing = 240  # Increased from 200 to accommodate larger text
+    # Increased spacing to prevent long rank names from clashing with Experience column
+    stat_spacing = 360  # Consistent spacing for proper column alignment
+
     draw_stat_box(draw, info_x, current_y, "RANK", rank_name.upper(),
                  font_small, font_large)
     draw_stat_box(draw, info_x + stat_spacing, current_y, "EXPERIENCE",
                  f"{xp:,} XP", font_small, font_large)
 
-    # Row 2: Messages and Voice Time
-    current_y += 85  # Increased from 80 for better spacing
+    # Row 2: Messages and Voice Time (aligned with columns above)
+    current_y += 90  # Increased from 85 for better vertical spacing
     draw_stat_box(draw, info_x, current_y, "MESSAGES", f"{message_count:,}",
                  font_small, font_large)
     draw_stat_box(draw, info_x + stat_spacing, current_y, "VOICE TIME",
@@ -477,19 +531,19 @@ def generate_rank_card(username, rank_badge, rank_name, xp, xp_max,
                      f"#{leaderboard_pos}", font_small, font_large)
 
     # === XP PROGRESS BAR ===
-    current_y += 65  # Increased from 80 for better spacing
+    current_y += 75  # Increased from 65 for better spacing after stats
     draw.text((info_x, current_y), "EXPERIENCE POINTS",
              fill=CODEC_GREEN_DIM, font=font_small)
 
-    progress_y = current_y + 26  # Increased from 22 for larger fonts
+    progress_y = current_y + 28  # Increased from 26 for better spacing
     progress_width = 600
     progress = min(max(xp / xp_max, 0), 1) if xp_max > 0 else 1.0
 
-    draw_mgs_progress_bar(draw, info_x, progress_y, progress_width, 28,  # Height increased from 24 to 28
+    draw_mgs_progress_bar(draw, info_x, progress_y, progress_width, 30,  # Height increased from 28 to 30
                          progress, f"{xp:,} / {xp_max:,}")
 
     # XP text below bar - INCREASED font size
-    draw.text((info_x, progress_y + 35),  # Adjusted position
+    draw.text((info_x, progress_y + 38),  # Adjusted position for taller bar
              f"[ {xp:,} XP / {xp_max:,} XP ]",
              fill=CODEC_GREEN_TEXT, font=font_small)  # Changed from font_tiny to font_small
 

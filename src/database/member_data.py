@@ -166,17 +166,20 @@ class MemberData:
 
         return purged_count
 
-    def get_member_data(self, member_id: int, guild_id: int) -> Dict[str, Any]:
+    def get_member_data(self, member_id: int, guild_id: int, member_obj=None) -> Dict[str, Any]:
         """
-        Get member data for specific guild.
+        Get member data for specific guild with validation and edge case handling.
 
         Args:
             member_id: Discord member ID
             guild_id: Discord guild ID
+            member_obj: Optional Discord member object for role detection fallback
 
         Returns:
             Member data dictionary
         """
+        from utils.rank_migration import is_old_rank, is_valid_cozy_rank
+
         guild_key = str(guild_id)
         member_key = str(member_id)
 
@@ -189,14 +192,53 @@ class MemberData:
         if member_key in self.data[guild_key]:
             existing_data = self.data[guild_key][member_key]
 
-            # Ensure rank matches XP
-            correct_rank, correct_icon = calculate_rank_from_xp(existing_data.get("xp", 0))
-            existing_data["rank"] = correct_rank
-            existing_data["rank_icon"] = correct_icon
-
-            # Backward compatibility: add daily_streak if missing
+            # Backward compatibility: add missing fields
             if "daily_streak" not in existing_data:
                 existing_data["daily_streak"] = 0
+
+            if "last_activity_date" not in existing_data:
+                existing_data["last_activity_date"] = None
+
+            if "current_streak" not in existing_data:
+                existing_data["current_streak"] = 0
+
+            if "longest_streak" not in existing_data:
+                existing_data["longest_streak"] = 0
+
+            # EDGE CASE: Validate rank data
+            current_rank = existing_data.get("rank", "")
+
+            # Check if rank is old or invalid
+            if is_old_rank(current_rank):
+                logger.warning(f"Member {member_key} has old rank '{current_rank}' - will auto-migrate on next XP gain")
+                # Don't migrate here, let add_xp handle it to avoid false promotion notifications
+            elif not is_valid_cozy_rank(current_rank):
+                # Invalid rank - try to detect from Discord roles if member_obj provided
+                logger.warning(f"Member {member_key} has invalid rank '{current_rank}'")
+
+                if member_obj:
+                    from utils.role_manager import detect_rank_from_roles
+                    detected_rank = detect_rank_from_roles(member_obj)
+
+                    if detected_rank:
+                        rank_name, rank_icon = detected_rank
+                        logger.info(f"Detected rank from Discord roles: {rank_name}")
+                        existing_data["rank"] = rank_name
+                        existing_data["rank_icon"] = rank_icon
+                        self.schedule_save()
+                    else:
+                        # No role detected, recalculate from XP
+                        logger.info(f"Recalculating rank from XP for member {member_key}")
+                        fixed_rank, fixed_icon = calculate_rank_from_xp(existing_data.get("xp", 0))
+                        existing_data["rank"] = fixed_rank
+                        existing_data["rank_icon"] = fixed_icon
+                        self.schedule_save()
+                else:
+                    # No member object, just fix from XP
+                    fixed_rank, fixed_icon = calculate_rank_from_xp(existing_data.get("xp", 0))
+                    existing_data["rank"] = fixed_rank
+                    existing_data["rank_icon"] = fixed_icon
+                    self.schedule_save()
 
             return existing_data
         else:
@@ -229,14 +271,42 @@ class MemberData:
         Returns:
             Tuple of (rank_changed, new_rank)
         """
+        from utils.rank_migration import is_old_rank, migrate_member_rank, is_valid_cozy_rank
+
         member_data = self.get_member_data(member_id, guild_id)
 
-        # Store old values
+        # Store old values BEFORE any migration
         old_rank = member_data["rank"]
         old_xp = member_data["xp"]
 
-        # Apply rank-based XP multiplier
-        multiplier = RANK_XP_MULTIPLIERS.get(old_rank, 1.0)
+        # MIGRATION: Check if user has an old rank that needs migration
+        if is_old_rank(old_rank):
+            logger.info(f"🔄 Auto-migrating member {member_id} from old rank system")
+            was_migrated, migrated_rank, migrated_icon, migrated_xp = migrate_member_rank(member_data)
+
+            if was_migrated:
+                # Update the member data with migrated values
+                member_data["rank"] = migrated_rank
+                member_data["rank_icon"] = migrated_icon
+                member_data["xp"] = migrated_xp
+
+                # Update old_rank and old_xp to the migrated values so we don't trigger false promotions
+                old_rank = migrated_rank
+                old_xp = migrated_xp
+
+                logger.info(f"✅ Migration complete: {member_id} -> Rank: {migrated_rank}, XP: {migrated_xp}")
+                self.schedule_save()
+
+        # Validate current rank is valid, if not, fix it
+        if not is_valid_cozy_rank(member_data["rank"]):
+            logger.warning(f"Invalid rank detected for {member_id}: {member_data['rank']}, recalculating...")
+            fixed_rank, fixed_icon = calculate_rank_from_xp(member_data["xp"])
+            member_data["rank"] = fixed_rank
+            member_data["rank_icon"] = fixed_icon
+            old_rank = fixed_rank  # Prevent false promotion notification
+
+        # Apply rank-based XP multiplier (use new cozy rank names)
+        multiplier = RANK_XP_MULTIPLIERS.get(member_data["rank"], 1.0)
         xp_change = int(xp_change * multiplier)
 
         # Update stats based on activity type
@@ -255,8 +325,17 @@ class MemberData:
 
         # Recalculate rank based on new XP
         new_rank, new_icon = calculate_rank_from_xp(member_data["xp"])
-        member_data["rank"] = new_rank
-        member_data["rank_icon"] = new_icon
+
+        # Only update rank if it actually changed to a different rank
+        actual_rank_change = (old_rank != new_rank)
+
+        if actual_rank_change:
+            member_data["rank"] = new_rank
+            member_data["rank_icon"] = new_icon
+            logger.info(f"🎖️ REAL RANK CHANGE: {member_id} promoted from {old_rank} to {new_rank}")
+        else:
+            # No rank change, keep existing rank
+            new_rank = member_data["rank"]
 
         # Schedule save
         self.schedule_save()
@@ -264,8 +343,8 @@ class MemberData:
         # Log the change
         logger.debug(f"Member {member_id}: +{xp_change} XP ({old_xp} -> {member_data['xp']}) [x{multiplier}], Rank: {old_rank} -> {new_rank}")
 
-        # Return whether rank changed
-        return old_rank != new_rank, new_rank
+        # Return whether rank ACTUALLY changed (not just migration)
+        return actual_rank_change, new_rank
 
     def award_daily_bonus(self, member_id: int, guild_id: int) -> Tuple[bool, int, bool, Optional[str]]:
         """

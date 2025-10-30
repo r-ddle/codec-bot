@@ -33,9 +33,10 @@ class InfoView(View):
 
     def get_home_content(self) -> str:
         """Get home page content"""
-        return """## Codec Bot - MGS Discord Bot
+        return """## Kiro - Exile's Cozy Bot 🌱
 
-A feature-rich Discord bot with XP-based ranking system, Word-Up game, server events, and more.
+Your friendly neighborhood Discord bot for r.ddle's server!
+Featuring a progression system, fun mini-games, server events, and more.
 
 **Use the buttons below to navigate:**
 • **Commands** - View all available commands
@@ -44,8 +45,9 @@ A feature-rich Discord bot with XP-based ranking system, Word-Up game, server ev
 
 **Quick Links:**
 • Prefix: `!`
-• Support: Contact server administrators
-• Version: 2.0
+• Server: Exile by r.ddle
+• Support: <@1040597411116089424>
+• Version: 3.2
 """
 
     def get_commands_content(self) -> str:
@@ -53,28 +55,35 @@ A feature-rich Discord bot with XP-based ranking system, Word-Up game, server ev
         return """## Bot Commands
 
 **Progression & XP:**
-• `!rank` - Display your rank card
+• `!rank` - Display your rank card with MGS Codec style
 • `!rankinfo` - View rank system info and perks
 • `!status` - View your XP and rank (slash command)
-• `!daily` - Claim daily XP bonus
-• `!leaderboard` - View server leaderboard
+• `!daily` - Claim daily XP bonus and supply drops
+• `!leaderboard` or `!lb` - View server leaderboard
 
 **Word-Up Game:**
-• `!wordup_status` - Check current word
-• `!leaderboard_wordup` - Word-Up leaderboard
+• `!wordup_status` - Check current word and game state
+• `!leaderboard_wordup` or `!lb_wordup` - Word-Up points leaderboard
 
 **Server Events:**
 • `!eventstatus` - Check active event progress
-• `!eventinfo` - Detailed event information
+• `!eventinfo` - Detailed event information and rewards
+
+**Profile:**
+• `!profile [@user]` - View your or someone's profile card
+• `!setbio <text>` - Set your profile bio
 
 **Utility:**
 • `!lvlup` - Learn about the ranking system
-• `!rankinfo` - Show rank system info
+• `!rankinfo` - Show rank system details and progression
 • `!ping` - Check bot latency
 • `!info` - Show this information
 
-**Profile:**
-• `!profile` - View your profile
+**Fun Commands:**
+• `!avatar [@user]` - View user's avatar in high quality
+• `!rps <rock|paper|scissors>` - Play Rock Paper Scissors
+• `!coinflip` - Flip a coin
+• `!8ball <question>` - Ask the magic 8-ball
 """
 
     def get_admin_commands_content(self) -> str:
@@ -86,74 +95,81 @@ A feature-rich Discord bot with XP-based ranking system, Word-Up game, server ev
 • `!demote <member>` - Demote member to previous rank
 • `!setxp <member> <amount>` - Set member's XP
 • `!givexp <member> <amount>` - Give/remove XP
+• `!fix_rank <member>` - Fix member's rank (migration tool)
+
+**Rank Migration (New!):**
+• `!migrate_ranks` - Migrate all users from old MGS ranks to Cozy ranks
+• `!check_migration` - Check migration status for all members
 
 **Server Events:**
-• `!eventstart [goal] [title]` - Start a new event
+• `!eventstart [goal] [title]` - Start a new server event
 • `!eventend` - End current event
 • `!eventrestart` - Restart event progress
 • `!eventprogress` - Force progress update
+• `!eventreset` - Reset event completely
 
 **System:**
 • `!auto_promote` - Auto-promote eligible members
-• `!fix_all_roles` - Fix role assignments
+• `!fix_all_roles` - Fix all role assignments
 • `!check_roles` - Check role configuration
-• `!neon_backup` - Backup to database
-• `!neon_status` - Check database status
-• `!neon_resync` - Resync with database
+• `!neon_backup` - Backup data to Neon database
+• `!neon_status` - Check database connection status
+• `!neon_resync` - Force resync with database
 
 **Testing:**
-• `!test_promotion <member>` - Test promotion
+• `!test_promotion <member>` - Test promotion notification
 • `!test_daily <member>` - Reset daily cooldown
 • `!test_supply <member>` - Reset supply cooldown
-• `!test_streak <member> <days>` - Set streak
+• `!test_streak <member> <days>` - Set streak days
 
-**Word-Up:**
-• `!wordup_reset` - Reset Word-Up game
-• `!wordup_set <word>` - Set current word
-• `!wordup_clearwarnings <member>` - Clear warnings
+**Word-Up Game:**
+• `!wordup_reset` - Reset Word-Up game state
+• `!wordup_set <word>` - Manually set current word
+• `!wordup_clearwarnings <member>` - Clear member's warnings
+• `!wordup_removetroll <member>` - Remove Word-Up Troll role manually
 """
 
     def get_features_content(self) -> str:
         """Get features page content"""
         return """## Bot Features
 
-**XP & Ranking System:**
-• Earn XP from chatting and voice activity
+**🌱 Ranking System:**
+• Ranks from **New Lifeform** to **Anti-Grass Toucher**
+• Earn XP from messages, voice chat, reactions, and more
 • Monthly XP reset with rank preservation
-• Rank multipliers for faster progression
-• Automatic role assignment based on ranks
+• Rank multipliers (1.0x - 2.0x) for faster progression
+• Automatic role assignment with old role cleanup
 
-**Word-Up Game:**
-• Word chain game in dedicated channel
-• Points for dictionary words vs slang
-• Anti-spam and troll protection
-• 3-day word cooldown system
+**🎮 Word-Up Game:**
+• Word chain game in dedicated <#1423506535199281254> channel
+• Points for dictionary words vs slang/names
+• Anti-spam and troll protection (3 strikes = 5 min timeout)
+• **Auto-removal of Troll role** when punishment expires
+• 3-day word cooldown prevents repeated words
 • Leaderboard tracking
 
-**Server Events:**
-• Weekly community challenges
-• Dynamic goal calculation
-• Progress tracking with images
+**🎯 Server Events:**
+• Weekly/monthly community challenges
+• Dynamic goal calculation based on server size
+• Live progress tracking with generated images
 • Reward distribution on completion
-• Top contributor leaderboards
+• Top contributor leaderboards and recognition
 
-**Daily Systems:**
-• Daily bonus XP claims
-• Supply drop mini-game
-• Login streak tracking
-• Consecutive day rewards
+**📅 Daily Systems:**
+• Daily bonus XP claims (resets at midnight)
+• Supply drop mini-game with random rewards
+• Login streak tracking (3, 7, 14, 30+ day bonuses)
+• Consecutive day rewards (up to +40 XP per message)
+• Streak XP multipliers
 
-**Profile System:**
+**👤 Profile System:**
 • Custom profile cards
-• Rank display with progress
-• Stats and achievements
-• Thumbnail support
+• Rank display with progress bars
+• Stats tracking (messages, voice time, reactions)
+• Bio customization with `!setbio`
+• Streak and activity tracking
 
-**Database:**
-• PostgreSQL (Neon) integration
-• Automatic backups
-• Real-time syncing
-• Data persistence
+
 """
 
     async def home_callback(self, interaction: discord.Interaction):

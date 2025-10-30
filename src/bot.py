@@ -25,6 +25,7 @@ async def load_extensions(bot: KiraBot):
         'cogs.profile',  # Profile commands
         'cogs.info',
         'cogs.admin',
+        'cogs.migration',  # Rank migration utilities
         'cogs.slash_commands',
         'cogs.server_event',  # Weekly server events
         'cogs.word_up',  # Word-Up game moderation

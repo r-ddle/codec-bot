@@ -66,8 +66,8 @@ class VoiceEvents(commands.Cog):
                         # Update last reward time
                         self.last_reward_time[key] = current_time
 
-                        # Send promotion notification if rank changed
-                        if rank_changed:
+                        # Send promotion notification if rank ACTUALLY changed (not same rank)
+                        if rank_changed and old_rank != new_rank:
                             await self._send_voice_promotion(member, channel, old_rank, new_rank, 1)
 
                         logger.debug(f"Voice XP: {member.name} earned {xp_per_minute} XP (1 min in {channel.name})")

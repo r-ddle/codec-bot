@@ -21,7 +21,6 @@ logger = logging.getLogger('mgs_bot')
 # Bot Configuration
 TOKEN: Optional[str] = os.getenv('DISCORD_TOKEN')
 NEWS_API_KEY: Optional[str] = os.getenv('NEWS_API_KEY')
-GEMINI_API_KEY: Optional[str] = os.getenv('GEMINI_API_KEY')  # For RPS5 game
 WELCOME_CHANNEL_ID: Optional[int] = int(os.getenv('WELCOME_CHANNEL_ID')) if os.getenv('WELCOME_CHANNEL_ID') else None
 FAQ_CHANNEL_ID: Optional[int] = int(os.getenv('FAQ_CHANNEL_ID')) if os.getenv('FAQ_CHANNEL_ID') else None
 RULES_CHANNEL_ID: Optional[int] = int(os.getenv('RULES_CHANNEL_ID')) if os.getenv('RULES_CHANNEL_ID') else None

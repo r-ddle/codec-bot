@@ -43,8 +43,10 @@ class WordUpGame(commands.Cog):
         # User word history and warning tracking
         self.user_word_history: Dict[int, Dict[str, datetime]] = {}  # user_id -> {word: last_used_time}
         self.user_warnings: Dict[int, int] = {}  # user_id -> warning_count
+        self.punished_users: Dict[int, datetime] = {}  # user_id -> punishment_end_time
 
         self.load_data()
+        self.check_troll_roles.start()  # Start background task
 
     def load_data(self):
         """Load word-up data from JSON file."""
@@ -67,6 +69,13 @@ class WordUpGame(commands.Cog):
                     # Load warnings
                     warnings_data = data.get('user_warnings', {})
                     self.user_warnings = {int(user_id): count for user_id, count in warnings_data.items()}
+
+                    # Load punished users (convert timestamps back to datetime)
+                    punished_data = data.get('punished_users', {})
+                    self.punished_users = {
+                        int(user_id): datetime.fromisoformat(timestamp)
+                        for user_id, timestamp in punished_data.items()
+                    }
 
                     if self.last_word:
                         logger.info(f"Word-Up: Loaded last word '{self.last_word}' from file")
@@ -91,12 +100,19 @@ class WordUpGame(commands.Cog):
                     for word, timestamp in words.items()
                 }
 
+            # Convert punished_users datetime objects to ISO format strings
+            punished_data = {
+                str(user_id): timestamp.isoformat()
+                for user_id, timestamp in self.punished_users.items()
+            }
+
             data = {
                 'last_word': self.last_word,
                 'last_message_id': self.last_message_id,
                 'last_player_id': self.last_player_id,
                 'user_word_history': history_data,
-                'user_warnings': {str(user_id): count for user_id, count in self.user_warnings.items()}
+                'user_warnings': {str(user_id): count for user_id, count in self.user_warnings.items()},
+                'punished_users': punished_data
             }
             with open(self.data_file, 'w') as f:
                 json.dump(data, f, indent=2)
@@ -106,6 +122,7 @@ class WordUpGame(commands.Cog):
     def extract_word(self, content: str) -> str:
         """
         Extract the first word from message content.
+        Supports both "word" and "(word)" formats.
         Only accepts ASCII English letters to prevent Unicode bypasses.
 
         Args:
@@ -122,6 +139,15 @@ class WordUpGame(commands.Cog):
         cleaned = re.sub(r'<a?:\w+:\d+>', '', cleaned)  # Remove custom emojis
         cleaned = cleaned.strip()
 
+        # First try to extract word from parentheses: (word), ( word ), etc.
+        # Allow optional whitespace around the word
+        parenthesis_match = re.search(r'\(\s*([a-zA-Z]+)\s*\)', cleaned)
+        if parenthesis_match:
+            word = parenthesis_match.group(1).lower()
+            # Verify ASCII English letters only
+            if all(ord(c) < 128 and c.isalpha() for c in word):
+                return word
+
         # Extract first word (ASCII English letters only)
         # This prevents Unicode homoglyphs and Cyrillic characters
         match = re.match(r'^([a-zA-Z]+)', cleaned)
@@ -132,15 +158,17 @@ class WordUpGame(commands.Cog):
                 return word
         return ""
 
-    def is_valid_message_format(self, message: discord.Message) -> tuple[bool, str]:
+    def is_valid_message_format(self, message: discord.Message) -> tuple[bool, str, bool]:
         """
         Check if message follows allowed format: word, (word), or GIF only.
+        Allows mentions and extra text around the word.
 
         Args:
             message: Discord message object
 
         Returns:
-            Tuple of (is_valid, word_or_reason)
+            Tuple of (is_valid, word_or_reason, is_parentheses)
+            - is_parentheses: True if word is in (word) format (commentary, doesn't count as game word)
         """
         content = message.content.strip()
 
@@ -152,29 +180,42 @@ class WordUpGame(commands.Cog):
 
         # Allow GIF-only messages
         if has_gif and not content:
-            return (True, "gif")
+            return (True, "gif", False)
 
-        # Check if content matches (word) pattern
-        parenthesis_match = re.match(r'^\(([a-zA-Z]+)\)$', content)
+        # Clean content: remove mentions, URLs, emojis
+        cleaned = re.sub(r'https?://\S+', '', content)  # Remove URLs
+        cleaned = re.sub(r'<@!?\d+>', '', cleaned)  # Remove user mentions
+        cleaned = re.sub(r'<@&\d+>', '', cleaned)  # Remove role mentions
+        cleaned = re.sub(r'<#\d+>', '', cleaned)  # Remove channel mentions
+        cleaned = re.sub(r'<a?:\w+:\d+>', '', cleaned)  # Remove custom emojis
+        cleaned = cleaned.strip()
+
+        # Check if cleaned content matches (word) pattern with optional extra text
+        # Matches: (word), ( word ), (word) extra text, extra (word) text
+        # Allow optional whitespace around the word inside parentheses
+        # Words in parentheses are COMMENTARY and don't count as game words
+        parenthesis_match = re.search(r'\(\s*([a-zA-Z]+)\s*\)', cleaned)
         if parenthesis_match:
             word = parenthesis_match.group(1).lower()
             # Verify ASCII English letters only
             if all(ord(c) < 128 and c.isalpha() for c in word):
-                return (True, word)
+                return (True, word, True)  # True = is_parentheses (commentary)
 
-        # Check if it's just a regular word (ASCII English letters only)
-        word_match = re.match(r'^([a-zA-Z]+)$', content)
+        # Check if it starts with a regular word (ASCII English letters only)
+        # Matches: word, word extra text
+        word_match = re.match(r'^([a-zA-Z]+)', cleaned)
         if word_match:
             word = word_match.group(1).lower()
             # Verify ASCII English letters only
             if all(ord(c) < 128 and c.isalpha() for c in word):
-                return (True, word)
+                return (True, word, False)  # False = regular game word
 
-        # Check for non-English/special characters
-        if content and not re.match(r'^[a-zA-Z()]*$', content):
-            return (False, "non-english special characters are not allowed")
+        # Check for non-English/special characters (after cleaning)
+        # Only check the cleaned content for invalid characters
+        if cleaned and re.search(r'[^a-zA-Z()\s]', cleaned):
+            return (False, "non-english special characters are not allowed", False)
 
-        return (False, "please send a word or GIF only")
+        return (False, "please send a word or GIF only", False)
 
     def detect_gibberish(self, word: str) -> bool:
         """
@@ -332,15 +373,59 @@ class WordUpGame(commands.Cog):
                 timeout_until = discord.utils.utcnow() + timedelta(minutes=5)
                 await member.timeout(timeout_until, reason="Word-Up spam/abuse (3 warnings)")
 
+                # Track punishment end time (convert to aware datetime)
+                punishment_end = datetime.now().astimezone() + timedelta(minutes=5)
+                self.punished_users[user_id] = punishment_end
+
                 # Reset warnings after punishment
                 self.user_warnings[user_id] = 0
 
-                logger.info(f"Word-Up: Applied troll role and timeout to {member.name} (3 warnings)")
+                logger.info(f"Word-Up: Applied troll role and timeout to {member.name} (3 warnings), expires at {punishment_end}")
             except Exception as e:
                 logger.error(f"Error applying Word-Up punishment: {e}")
 
         self.save_data()
         return warnings
+
+    @tasks.loop(minutes=1)
+    async def check_troll_roles(self):
+        """Background task to remove troll role when punishment expires."""
+        try:
+            now = datetime.now().astimezone()
+            users_to_remove = []
+
+            for user_id, punishment_end in self.punished_users.items():
+                # Check if punishment has expired
+                if now >= punishment_end:
+                    users_to_remove.append(user_id)
+
+            # Remove role from users whose punishment has expired
+            for user_id in users_to_remove:
+                for guild in self.bot.guilds:
+                    member = guild.get_member(user_id)
+                    if member:
+                        troll_role = guild.get_role(WORDUP_TROLL_ROLE_ID)
+                        if troll_role and troll_role in member.roles:
+                            try:
+                                await member.remove_roles(troll_role, reason="Word-Up punishment expired")
+                                logger.info(f"Word-Up: Removed troll role from {member.name} (punishment expired)")
+                            except Exception as e:
+                                logger.error(f"Error removing troll role from {member.name}: {e}")
+
+                # Remove from tracking
+                del self.punished_users[user_id]
+
+            # Save data if any users were cleaned up
+            if users_to_remove:
+                self.save_data()
+
+        except Exception as e:
+            logger.error(f"Error in check_troll_roles task: {e}")
+
+    @check_troll_roles.before_loop
+    async def before_check_troll_roles(self):
+        """Wait until the bot is ready before starting the task."""
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -358,13 +443,13 @@ class WordUpGame(commands.Cog):
             return
 
         # Validate message format first
-        is_valid_format, word_or_reason = self.is_valid_message_format(message)
+        is_valid_format, word_or_reason, is_parentheses = self.is_valid_message_format(message)
 
         if not is_valid_format:
             await message.delete()
             container = create_error_message(
                 title="invalid format",
-                description=f"{message.author.mention} {word_or_reason}\n\nallowed formats:\n• word - regular english words\n• (word) - word in parentheses\n• gif attachments only"
+                description=f"{message.author.mention} {word_or_reason}\n\nallowed formats:\n• word - regular english words\n• (word) - word in parentheses (commentary)\n• gif attachments only"
             )
             view = LayoutView()
             view.add_item(container)
@@ -378,6 +463,11 @@ class WordUpGame(commands.Cog):
             return
 
         word = word_or_reason
+
+        # If word is in parentheses, it's commentary - allow it but don't process as game word
+        if is_parentheses:
+            logger.info(f"word-up: {message.author.name} sent commentary: ({word})")
+            return
 
         # Detect invisible characters (extra safety check)
         if self.detect_invisible_chars(message.content):
@@ -627,6 +717,57 @@ class WordUpGame(commands.Cog):
         await ctx.send(view=view)
         logger.info(f"Word-Up warnings cleared for {member.name} by {ctx.author.name}")
 
+    @commands.command(name='wordup_removetroll')
+    @commands.has_permissions(manage_roles=True)
+    async def remove_troll_role(self, ctx, member: discord.Member):
+        """Manually remove the Word-Up Troll role from a member (Admin only)."""
+        try:
+            troll_role = ctx.guild.get_role(WORDUP_TROLL_ROLE_ID)
+            if not troll_role:
+                container = create_error_message(
+                    title="Error",
+                    description="Word-Up Troll role not found"
+                )
+                view = LayoutView()
+                view.add_item(container)
+                await ctx.send(view=view)
+                return
+
+            if troll_role not in member.roles:
+                container = create_info_card(
+                    title="No Action Needed",
+                    description=f"{member.mention} doesn't have the Word-Up Troll role"
+                )
+                view = LayoutView()
+                view.add_item(container)
+                await ctx.send(view=view)
+                return
+
+            await member.remove_roles(troll_role, reason=f"Manually removed by {ctx.author.name}")
+
+            # Remove from punishment tracking if present
+            if member.id in self.punished_users:
+                del self.punished_users[member.id]
+                self.save_data()
+
+            container = create_success_message(
+                title="Role Removed",
+                description=f"Word-Up Troll role removed from {member.mention}"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            logger.info(f"Word-Up Troll role manually removed from {member.name} by {ctx.author.name}")
+
+        except Exception as e:
+            logger.error(f"Error removing troll role: {e}")
+            container = create_error_message(
+                title="Error",
+                description="Failed to remove role. Check bot permissions."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
 
     @commands.command(name='leaderboard_wordup', aliases=['lb_wordup', 'wordup_lb'])
     async def leaderboard_wordup(self, ctx):
@@ -698,6 +839,10 @@ class WordUpGame(commands.Cog):
             view = LayoutView()
             view.add_item(container)
             await ctx.send(view=view)
+
+    def cog_unload(self):
+        """Clean up when the cog is unloaded."""
+        self.check_troll_roles.cancel()
 
 
 async def setup(bot):

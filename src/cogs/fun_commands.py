@@ -455,6 +455,441 @@ class FunCommands(commands.Cog):
         await milestone_channel.send(view=view)
         logger.info(f"🎉 Counting milestone announced: {formatted_count}")
 
+    @commands.command(name='rps5', aliases=['battle', 'chaos'])
+    async def random_battle(self, ctx, rounds: str = "1", opponent: Optional[discord.Member] = None):
+        """
+        Epic random item battle! 5 random items, AI judges the winner!
+
+        Usage:
+        - !rps5 @user (single round)
+        - !rps5 3r @user (best of 3)
+        - !rps5 5r @user (best of 5)
+        """
+        # Parse rounds
+        try:
+            if rounds.endswith('r'):
+                num_rounds = int(rounds[:-1])
+            else:
+                # Check if rounds is actually the opponent mention
+                if rounds.startswith('<@'):
+                    opponent = await commands.MemberConverter().convert(ctx, rounds)
+                    num_rounds = 1
+                else:
+                    num_rounds = int(rounds)
+        except:
+            num_rounds = 1
+
+        # Validate rounds
+        if num_rounds not in [1, 3, 5, 7]:
+            container = create_error_message(
+                "invalid rounds",
+                "choose 1, 3, 5, or 7 rounds\n\n"
+                "**usage:** `!rps5 3r @user` or `!rps5 @user`"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            return
+
+        # Check if opponent is provided
+        if not opponent:
+            container = create_error_message(
+                "no opponent specified",
+                "you need to mention someone to battle\n\n"
+                "**usage:** `!rps5 [rounds] @user`\n"
+                "**examples:**\n"
+                "• `!rps5 @friend` - single round\n"
+                "• `!rps5 3r @friend` - best of 3\n"
+                "• `!rps5 5r @friend` - best of 5"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            return
+
+        # Validation checks
+        if opponent.id == ctx.author.id:
+            container = create_error_message(
+                "can't battle yourself",
+                "you can't battle against yourself, find an opponent"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            return
+
+        if opponent.bot:
+            container = create_error_message(
+                "can't battle bots",
+                "you can't challenge a bot to battle"
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            return
+
+        # Create and start the game
+        game = RPS5Game(ctx.author, opponent, num_rounds, self.bot)
+        await game.start(ctx)
+
+
+class RPS5Game:
+    """Random 5-item battle game with AI judging."""
+
+    # Massive pool of random items for chaos
+    ITEM_POOL = [
+        # Weapons & Tools
+        "Atomic Bomb", "Nuclear Missile", "Laser Cannon", "Katana", "Chainsaw",
+        "Baseball Bat", "Rubber Chicken", "Spoon", "Fork", "Butter Knife",
+        "Pencil", "Eraser", "Stapler", "Paper Clip", "Thumbtack",
+
+        # Living Things
+        "Dragon", "Unicorn", "Zombie", "Vampire", "Werewolf",
+        "Newborn Baby", "Toddler", "Teenager", "Karen", "Florida Man",
+        "Cat", "Dog", "Hamster", "Eagle", "Pigeon",
+        "Goldfish", "Shark", "Whale", "Ant", "Spider",
+
+        # Nature & Elements
+        "Black Hole", "Supernova", "Lightning Bolt", "Tornado", "Tsunami",
+        "Earthquake", "Volcano", "Avalanche", "Wildfire", "Blizzard",
+        "Raindrop", "Snowflake", "Leaf", "Pebble", "Grain of Sand",
+
+        # Technology
+        "Smartphone", "Laptop", "Gaming PC", "Calculator", "Toaster",
+        "Microwave", "Refrigerator", "Vacuum Cleaner", "Robot", "AI",
+        "Nuclear Power Plant", "Solar Panel", "Wind Turbine", "Battery", "Charger",
+
+        # Food & Drink
+        "Pizza", "Burger", "Hot Dog", "Taco", "Sushi",
+        "Banana", "Apple", "Orange", "Grape", "Watermelon",
+        "Coffee", "Tea", "Water", "Soda", "Energy Drink",
+        "Bread", "Cheese", "Milk", "Egg", "Bacon",
+
+        # Abstract Concepts
+        "Love", "Hate", "Fear", "Joy", "Anger",
+        "Time", "Space", "Gravity", "Entropy", "Chaos",
+        "Mathematics", "Philosophy", "Art", "Music", "Poetry",
+
+        # Random Objects
+        "Rock", "Paper", "Scissors", "Sock", "Shoe",
+        "Hat", "Umbrella", "Sunglasses", "Mirror", "Lamp",
+        "Chair", "Table", "Bed", "Pillow", "Blanket",
+        "Book", "Pen", "Keyboard", "Mouse", "Monitor",
+
+        # Memes & Pop Culture
+        "Shrek", "Thanos", "John Cena", "Rick Astley", "Doge",
+        "Pepe", "Wojak", "Chad", "Sigma Male", "Based God",
+        "UNO Reverse Card", "No U", "Ligma", "Joe Mama", "Deez Nuts",
+
+        # Completely Random
+        "Existential Dread", "Monday Morning", "Traffic Jam", "Lag Spike", "Loading Screen",
+        "404 Error", "Blue Screen", "Low Battery", "Wet Socks", "Stepping on LEGO",
+        "Brain Freeze", "Stubbed Toe", "Paper Cut", "Hiccups", "Cringe",
+    ]
+
+    def __init__(self, player1: discord.Member, player2: discord.Member, rounds: int, bot):
+        self.player1 = player1
+        self.player2 = player2
+        self.rounds = rounds
+        self.bot = bot
+        self.player1_score = 0
+        self.player2_score = 0
+        self.current_round = 0
+        self.game_message = None
+
+    async def start(self, ctx):
+        """Start the battle game."""
+        # Announce game start with component
+        rounds_text = "single round" if self.rounds == 1 else f"best of {self.rounds}"
+
+        container = create_info_card(
+            title="randomizer game started",
+            description=f"{self.player1.mention} vs {self.player2.mention}\n\n"
+                       f"**format:** {rounds_text}\n"
+                       f"**status:** generating random items...\n\n",
+            color_code="blue"
+        )
+        view = LayoutView()
+        view.add_item(container)
+
+        message = await ctx.send(view=view)
+        self.game_message = message
+
+        # Play rounds
+        while self.current_round < self.rounds:
+            if self.player1_score > self.rounds // 2 or self.player2_score > self.rounds // 2:
+                break  # Someone already won
+
+            self.current_round += 1
+            await asyncio.sleep(2)  # Dramatic pause
+            await self.play_round(ctx)
+
+        # Announce final winner
+        await self.announce_winner(ctx)
+
+    async def play_round(self, ctx):
+        """Play a single round."""
+        # Generate 5 random items
+        items = random.sample(self.ITEM_POOL, 5)
+
+        # Create item selection view
+        view = RPS5SelectView(self.player1, self.player2, items, self)
+
+        # Create info container (no buttons yet)
+        container = create_info_card(
+            title=f"round {self.current_round} of {self.rounds}",
+            description=f"**score:** {self.player1.mention} {self.player1_score} - {self.player2_score} {self.player2.mention}\n\n"
+                       f"**choose your fighter:**\n"
+                       f"1️⃣ {items[0]}\n"
+                       f"2️⃣ {items[1]}\n"
+                       f"3️⃣ {items[2]}\n"
+                       f"4️⃣ {items[3]}\n"
+                       f"5️⃣ {items[4]}",
+            footer="30 seconds to choose",
+            color_code="blue"
+        )
+        layout_view = LayoutView()
+        layout_view.add_item(container)
+
+        # First update with info
+        await self.game_message.edit(view=layout_view)
+
+        # Then send a reply message with buttons
+        button_message = await self.game_message.reply(
+            content="select your item:",
+            view=view
+        )
+
+        view.message = button_message
+        view.info_message = self.game_message
+
+        # Wait for both players to choose (or timeout)
+        await view.wait()
+
+    def judge_battle(self, item1: str, item2: str) -> tuple[str, str]:
+        """Use predefined rules to judge which item wins."""
+        from config.constants import BATTLE_RULES
+
+        # Check if same item (tie)
+        if item1 == item2:
+            winner = random.choice([item1, item2])  # Random tiebreaker
+            return winner, f"Both chose {item1}! Tiebreaker favors player who chose first."
+
+        # Try direct lookup
+        matchup = f"{item1} vs {item2}"
+        if matchup in BATTLE_RULES:
+            winner, explanation = BATTLE_RULES[matchup]
+            return winner, explanation
+
+        # Try reverse lookup
+        reverse_matchup = f"{item2} vs {item1}"
+        if reverse_matchup in BATTLE_RULES:
+            winner, explanation = BATTLE_RULES[reverse_matchup]
+            return winner, explanation
+
+        # Fallback: Use simple logic based on item categories
+        return self.fallback_judge(item1, item2)
+
+    def fallback_judge(self, item1: str, item2: str) -> tuple[str, str]:
+        """Fallback logic when no rule exists."""
+        # Define power tiers
+        cosmic_tier = ["Black Hole", "Supernova", "Space", "Time", "Entropy"]
+        catastrophic_tier = ["Atomic Bomb", "Nuclear Missile", "Tsunami", "Earthquake", "Volcano", "Tornado"]
+        mythical_tier = ["Dragon", "Unicorn", "Vampire", "Werewolf", "Zombie"]
+        powerful_tier = ["Lightning Bolt", "Wildfire", "Blizzard", "Avalanche", "Robot", "AI"]
+
+        # Check tiers
+        for tier_name, tier_items, power_level in [
+            ("cosmic", cosmic_tier, 5),
+            ("catastrophic", catastrophic_tier, 4),
+            ("mythical", mythical_tier, 3),
+            ("powerful", powerful_tier, 2),
+        ]:
+            if item1 in tier_items and item2 not in tier_items:
+                return item1, f"{item1} dominates through sheer power. Superior tier wins."
+            elif item2 in tier_items and item1 not in tier_items:
+                return item2, f"{item2} dominates through sheer power. Superior tier wins."
+
+        # Random selection with creative explanations
+        winner = random.choice([item1, item2])
+        explanations = [
+            f"{winner} wins through unexpected advantage. Chaos favors the bold.",
+            f"{winner} outmaneuvers opponent cleverly. Strategy beats strength.",
+            f"{winner} prevails in close match. Victory by narrow margin.",
+            f"{winner} triumphs unexpectedly. Underdog energy activated.",
+            f"{winner} dominates decisively. Clear superiority demonstrated.",
+        ]
+        return winner, random.choice(explanations)
+
+    async def announce_winner(self, ctx):
+        """Announce the final winner of the match."""
+        if self.player1_score > self.player2_score:
+            winner = self.player1
+            winner_score = self.player1_score
+            loser_score = self.player2_score
+        else:
+            winner = self.player2
+            winner_score = self.player2_score
+            loser_score = self.player1_score
+
+        container = create_success_message(
+            "game complete",
+            f"**winner:** {winner.mention}\n"
+            f"**final score:** {winner_score} - {loser_score}\n\n"
+            f"good game!"
+        )
+        view = LayoutView()
+        view.add_item(container)
+
+        await self.game_message.edit(view=view)
+
+
+class RPS5SelectView(View):
+    """View for selecting items in RPS5."""
+
+    def __init__(self, player1: discord.Member, player2: discord.Member, items: list, game):
+        super().__init__(timeout=30.0)
+        self.player1 = player1
+        self.player2 = player2
+        self.items = items
+        self.game = game
+        self.player1_choice = None
+        self.player2_choice = None
+        self.message = None  # Button message
+        self.info_message = None  # Info container message
+
+        # Add number buttons with item labels
+        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+        for i, emoji in enumerate(emojis):
+            button = Button(
+                style=ButtonStyle.primary,
+                emoji=emoji,
+                label=items[i][:80],  # Discord button label limit
+                custom_id=f"rps5_item_{i}"
+            )
+            button.callback = self.make_callback(i)
+            self.add_item(button)
+
+    def make_callback(self, index):
+        """Create callback for item selection."""
+        async def callback(interaction: discord.Interaction):
+            # Check if user is a player
+            if interaction.user.id not in [self.player1.id, self.player2.id]:
+                await interaction.response.send_message(
+                    "This isn't your game!",
+                    ephemeral=True
+                )
+                return
+
+            # Check if player already chose
+            if interaction.user.id == self.player1.id:
+                if self.player1_choice:
+                    await interaction.response.send_message(
+                        "you already made your choice",
+                        ephemeral=True
+                    )
+                    return
+                self.player1_choice = self.items[index]
+                await interaction.response.send_message(
+                    f"you chose: **{self.items[index]}**",
+                    ephemeral=True
+                )
+            else:
+                if self.player2_choice:
+                    await interaction.response.send_message(
+                        "you already made your choice",
+                        ephemeral=True
+                    )
+                    return
+                self.player2_choice = self.items[index]
+                await interaction.response.send_message(
+                    f"you chose: **{self.items[index]}**",
+                    ephemeral=True
+                )
+
+            # Check if both players chose
+            if self.player1_choice and self.player2_choice:
+                await self.resolve_round()
+
+        return callback
+
+    async def resolve_round(self):
+        """Resolve the round with AI judging."""
+        # Delete button message
+        try:
+            await self.message.delete()
+        except:
+            pass
+
+        # Update info message - judging in progress
+        container = create_info_card(
+            title=f"round {self.game.current_round} of {self.game.rounds}",
+            description=f"{self.player1.mention} chose: {self.player1_choice}\n"
+                       f"{self.player2.mention} chose: {self.player2_choice}\n\n"
+                       f"determining winner...",
+            color_code="blue"
+        )
+        view = LayoutView()
+        view.add_item(container)
+
+        await self.info_message.edit(view=view)
+
+        # Small delay for dramatic effect
+        await asyncio.sleep(1)
+
+        # Get judgment from rules dataset
+        winner_item, explanation = self.game.judge_battle(
+            self.player1_choice,
+            self.player2_choice
+        )
+
+        # Determine winner
+        if winner_item == self.player1_choice:
+            winner = self.player1
+            self.game.player1_score += 1
+        else:
+            winner = self.player2
+            self.game.player2_score += 1
+
+        # Show result with component
+        result_container = create_info_card(
+            title=f"round {self.game.current_round} of {self.game.rounds}",
+            description=f"{self.player1.mention} chose: {self.player1_choice}\n"
+                       f"{self.player2.mention} chose: {self.player2_choice}\n\n"
+                       f"**winner:** {winner.mention}\n\n"
+                       f"{explanation}\n\n"
+                       f"**score:** {self.player1.mention} {self.game.player1_score} - {self.game.player2_score} {self.player2.mention}",
+            color_code="green"
+        )
+        result_view = LayoutView()
+        result_view.add_item(result_container)
+
+        await self.info_message.edit(view=result_view)
+
+        # Wait 4 seconds to show the result before continuing
+        await asyncio.sleep(4)
+
+        self.stop()
+
+    async def on_timeout(self):
+        """Handle timeout - players took too long."""
+        try:
+            await self.message.delete()
+        except:
+            pass
+
+        # Update info message with timeout
+        container = create_error_message(
+            "round timeout",
+            "Both players must select within 30 seconds!\n\n"
+            "Game cancelled."
+        )
+        view = LayoutView()
+        view.add_item(container)
+
+        await self.info_message.edit(view=view)
+        self.stop()
+
 
 async def setup(bot):
     """Load the fun commands cog."""
