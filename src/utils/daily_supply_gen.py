@@ -27,22 +27,22 @@ def sanitize_username(username):
 
     return cleaned.strip()[:30] if cleaned else "AGENT"
 
-# === AUTHENTIC MGS CODEC COLOR PALETTE ===
-CODEC_BG_DARK = (5, 25, 15)
-CODEC_BG_MEDIUM = (10, 35, 20)
-CODEC_GREEN_PRIMARY = (50, 200, 100)
-CODEC_GREEN_BRIGHT = (100, 255, 150)
-CODEC_GREEN_DIM = (30, 120, 60)
-CODEC_GREEN_TEXT = (80, 220, 120)
-CODEC_BORDER_BRIGHT = (120, 255, 180)
-CODEC_YELLOW = (255, 220, 0)
-CODEC_ORANGE = (255, 150, 0)
+# === COZY RED CODEC COLOR PALETTE ===
+CODEC_BG_DARK = (25, 5, 5)
+CODEC_BG_MEDIUM = (35, 10, 10)
+CODEC_GREEN_PRIMARY = (200, 50, 50)
+CODEC_GREEN_BRIGHT = (255, 100, 100)
+CODEC_GREEN_DIM = (120, 30, 30)
+CODEC_GREEN_TEXT = (220, 80, 80)
+CODEC_BORDER_BRIGHT = (255, 120, 120)
+CODEC_YELLOW = (255, 180, 100)  # Warm orange-red
+CODEC_ORANGE = (255, 120, 80)   # Deep coral red
 
-# Streak milestone colors
+# Streak milestone colors (red-orange spectrum)
 STREAK_NORMAL = CODEC_GREEN_BRIGHT
-STREAK_MILESTONE_7 = (255, 200, 50)
-STREAK_MILESTONE_30 = (255, 140, 0)
-STREAK_MILESTONE_100 = (255, 50, 50)
+STREAK_MILESTONE_7 = (255, 150, 100)   # Light coral
+STREAK_MILESTONE_30 = (255, 100, 70)   # Deeper coral
+STREAK_MILESTONE_100 = (255, 60, 60)   # Bright red
 
 # === FONT LOADING WITH FALLBACKS ===
 def load_font(size, font_type="text"):

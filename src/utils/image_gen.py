@@ -33,15 +33,15 @@ def sanitize_username(username):
 
     return cleaned if cleaned else "AGENT"
 
-# === AUTHENTIC MGS CODEC COLOR PALETTE ===
-CODEC_BG_DARK = (5, 25, 15)           # Deep dark green background
-CODEC_BG_MEDIUM = (10, 35, 20)        # Medium background
-CODEC_GREEN_PRIMARY = (50, 200, 100)  # Primary codec green
-CODEC_GREEN_BRIGHT = (100, 255, 150)  # Bright highlights
-CODEC_GREEN_DIM = (30, 120, 60)       # Dimmed elements
-CODEC_GREEN_TEXT = (80, 220, 120)     # Standard text
-CODEC_BORDER_BRIGHT = (120, 255, 180) # Bright borders
-CODEC_STATIC_OVERLAY = (40, 160, 80)  # Static effect color
+# === COZY RED CODEC COLOR PALETTE ===
+CODEC_BG_DARK = (25, 5, 5)            # Deep dark red background
+CODEC_BG_MEDIUM = (35, 10, 10)        # Medium background
+CODEC_GREEN_PRIMARY = (200, 50, 50)   # Primary codec red
+CODEC_GREEN_BRIGHT = (255, 100, 100)  # Bright highlights (light red)
+CODEC_GREEN_DIM = (120, 30, 30)       # Dimmed elements
+CODEC_GREEN_TEXT = (220, 80, 80)      # Standard text (light red)
+CODEC_BORDER_BRIGHT = (255, 120, 120) # Bright borders
+CODEC_STATIC_OVERLAY = (160, 40, 40)  # Static effect color (red CRT)
 
 # === FONT LOADING WITH FALLBACKS ===
 def load_font(size, font_type="text"):
@@ -250,20 +250,20 @@ def apply_mgs_filter(avatar):
     enhancer = ImageEnhance.Contrast(blurred)
     contrasted = enhancer.enhance(1.4)
 
-    # Convert to RGB and apply green tint
+    # Convert to RGB and apply red tint
     rgb = Image.new('RGB', avatar.size, CODEC_BG_DARK)
     rgb_draw = ImageDraw.Draw(rgb)
 
-    # Apply green colorization
+    # Apply red colorization
     pixels = contrasted.load()
     new_pixels = rgb.load()
 
     for y in range(avatar.height):
         for x in range(avatar.width):
             brightness = pixels[x, y]
-            # Map brightness to green scale
-            green_intensity = int(brightness * 0.85)
-            new_pixels[x, y] = (0, green_intensity, int(green_intensity * 0.5))
+            # Map brightness to red scale
+            red_intensity = int(brightness * 0.85)
+            new_pixels[x, y] = (red_intensity, int(red_intensity * 0.3), int(red_intensity * 0.3))
 
     return rgb
 

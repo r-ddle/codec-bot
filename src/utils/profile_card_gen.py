@@ -24,14 +24,14 @@ from typing import Optional, List
 
 # For this artifact, we'll include minimal versions:
 
-# === AUTHENTIC MGS CODEC COLOR PALETTE ===
-CODEC_BG_DARK = (5, 25, 15)
-CODEC_BG_MEDIUM = (10, 35, 20)
-CODEC_GREEN_PRIMARY = (50, 200, 100)
-CODEC_GREEN_BRIGHT = (100, 255, 150)
-CODEC_GREEN_DIM = (30, 120, 60)
-CODEC_GREEN_TEXT = (80, 220, 120)
-CODEC_BORDER_BRIGHT = (120, 255, 180)
+# === COZY RED CODEC COLOR PALETTE ===
+CODEC_BG_DARK = (25, 5, 5)
+CODEC_BG_MEDIUM = (35, 10, 10)
+CODEC_GREEN_PRIMARY = (200, 50, 50)
+CODEC_GREEN_BRIGHT = (255, 100, 100)
+CODEC_GREEN_DIM = (120, 30, 30)
+CODEC_GREEN_TEXT = (220, 80, 80)
+CODEC_BORDER_BRIGHT = (255, 120, 120)
 
 def sanitize_username(username):
     """Sanitizes username to handle Unicode characters properly."""
@@ -150,8 +150,8 @@ def apply_mgs_filter(avatar):
     for y in range(avatar.height):
         for x in range(avatar.width):
             brightness = pixels[x, y]
-            green_intensity = int(brightness * 0.85)
-            new_pixels[x, y] = (0, green_intensity, int(green_intensity * 0.5))
+            red_intensity = int(brightness * 0.85)
+            new_pixels[x, y] = (red_intensity, int(red_intensity * 0.3), int(red_intensity * 0.3))
 
     return rgb
 

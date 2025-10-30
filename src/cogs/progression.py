@@ -13,6 +13,7 @@ from utils.formatters import format_number, make_progress_bar
 from utils.rank_system import get_rank_data_by_name, get_next_rank_info
 from utils.role_manager import update_member_roles
 from utils.image_gen import generate_rank_card
+from utils.image_gen_modern import generate_modern_rank_card
 from utils.daily_supply_gen import generate_daily_supply_card, generate_promotion_card
 from utils.leaderboard_gen import generate_leaderboard
 from utils.rate_limiter import enforce_rate_limit
@@ -209,6 +210,118 @@ class Progression(commands.Cog):
                 import traceback
                 print(f"Error generating rank card: {e}")
                 traceback.print_exc()
+
+    @commands.command(name='ranknew')
+    @enforce_rate_limit('rank')
+    async def rank_modern(self, ctx, member: Optional[discord.Member] = None):
+        """Check rank status with modern UI design (experimental)."""
+        if member is None:
+            member = ctx.author
+
+        if member.bot:
+            container = create_error_message(
+                "Cannot check bot ranks",
+                "Bots don't have rank progression."
+            )
+            view = LayoutView()
+            view.add_item(container)
+            await ctx.send(view=view)
+            return
+
+        member_id = member.id
+        guild_id = ctx.guild.id
+        member_data = self.bot.member_data.get_member_data(member_id, guild_id)
+
+        # Show typing indicator while generating the image
+        async with ctx.typing():
+            try:
+                current_rank_name = member_data.get('rank', 'New Lifeform')
+                current_rank_icon = member_data.get('rank_icon', '🥚')
+                current_xp = member_data.get('xp', 0)
+                messages = member_data.get('messages_sent', 0)
+                voice_mins = member_data.get('voice_minutes', 0)
+
+                # Find current rank index
+                current_rank_index = 0
+                for i, rank_info in enumerate(COZY_RANKS):
+                    if rank_info.get("name") == current_rank_name:
+                        current_rank_index = i
+                        break
+
+                # Get next rank if not at max
+                next_rank = COZY_RANKS[current_rank_index + 1] if current_rank_index < len(COZY_RANKS) - 1 else None
+
+                # Calculate XP needed for progress bar
+                xp_max = next_rank.get("required_xp", current_xp) if next_rank else current_xp
+
+                # Get avatar URL
+                avatar_url = member.avatar.url if member.avatar else None
+
+                # Get leaderboard position
+                guild_data = self.bot.member_data.data.get(str(guild_id), {})
+                sorted_members = sorted(
+                    [(mid, mdata.get('xp', 0)) for mid, mdata in guild_data.items()],
+                    key=lambda x: x[1],
+                    reverse=True
+                )
+                leaderboard_pos = None
+                for idx, (mid, _) in enumerate(sorted_members, 1):
+                    if int(mid) == member_id:
+                        leaderboard_pos = idx
+                        break
+
+                # Generate the MODERN rank card image
+                img = await asyncio.to_thread(
+                    generate_modern_rank_card,
+                    member.display_name,
+                    current_rank_name,
+                    current_xp,
+                    xp_max,
+                    avatar_url,
+                    messages,
+                    voice_mins,
+                    leaderboard_pos,
+                    current_rank_icon
+                )
+
+                # Convert PIL Image to BytesIO in thread
+                image_bytes = BytesIO()
+                await asyncio.to_thread(img.save, image_bytes, 'PNG')
+                image_bytes.seek(0)
+
+                # Create Discord file from the image bytes
+                file = discord.File(fp=image_bytes, filename=f"rank_modern_{member_id}.png")
+
+                # Send the image
+                await ctx.send(file=file)
+
+            except Exception as e:
+                # Log the error for debugging
+                logger.error(f"Modern rank card generation failed: {e}", exc_info=True)
+
+                # Fallback to simple embed
+                embed = discord.Embed(
+                    title=f"{member_data.get('rank_icon', '🥚')} {member.display_name}",
+                    color=discord.Color.from_rgb(255, 110, 85)
+                )
+
+                embed.add_field(
+                    name="RANK INFO",
+                    value=f"**Rank:** {member_data['rank']}\n**XP:** {format_number(member_data['xp'])}",
+                    inline=False
+                )
+
+                embed.add_field(
+                    name="ACTIVITY STATS",
+                    value=f"Messages: {format_number(member_data['messages_sent'])}\nVoice: {format_number(member_data['voice_minutes'])} min",
+                    inline=False
+                )
+
+                embed.set_footer(text="⚠️ Image generation failed, showing text fallback")
+                if member.avatar:
+                    embed.set_thumbnail(url=member.avatar.url)
+
+                await ctx.send(embed=embed)
 
     @commands.command(name='leaderboard', aliases=['lb'])
     @enforce_rate_limit('leaderboard')
@@ -427,38 +540,42 @@ class Progression(commands.Cog):
                     logger.error(f"Error sending promotion announcement: {e}")
 
         except Exception as e:
-            # Fallback to component display if image fails
-            fields = [
-                {
-                    "name": "REWARD",
-                    "value": f"**+{format_number(xp)} XP** received!"
-                },
-                {
-                    "name": "UPDATED STATS",
-                    "value": f"```\nXP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days\n```"
-                }
-            ]
+            # Log the full error for debugging
+            logger.error(f"Image generation error: {e}", exc_info=True)
 
-            if rank_changed:
-                fields.append({
-                    "name": "🎖️ PROMOTION!",
-                    "value": f"New rank: **{new_rank}**"
-                })
-                if role_granted:
-                    fields.append({
-                        "name": "ROLE ASSIGNED",
-                        "value": f"Discord role **{role_granted}** granted!"
-                    })
-
-            container = create_status_container(
+            # Fallback to simple embed instead of components (avoids character limit issues)
+            embed = discord.Embed(
                 title="💰 DAILY SUPPLY DROP",
-                fields=fields,
-                footer=f"⚠️ Image generation failed: {e}"
+                color=discord.Color.from_rgb(255, 110, 85)
             )
 
-            view = LayoutView()
-            view.add_item(container)
-            await ctx.send(view=view)
+            embed.add_field(
+                name="REWARD",
+                value=f"**+{format_number(xp)} XP** received!",
+                inline=False
+            )
+
+            embed.add_field(
+                name="UPDATED STATS",
+                value=f"XP: {format_number(member_data['xp'])}\nRank: {member_data['rank']}\nStreak: {streak_days} days",
+                inline=False
+            )
+
+            if rank_changed:
+                embed.add_field(
+                    name="🎖️ PROMOTION!",
+                    value=f"New rank: **{new_rank}**",
+                    inline=False
+                )
+                if role_granted:
+                    embed.add_field(
+                        name="ROLE ASSIGNED",
+                        value=f"Discord role **{role_granted}** granted!",
+                        inline=False
+                    )
+
+            embed.set_footer(text="⚠️ Image generation failed, showing text fallback")
+            await ctx.send(embed=embed)
 
         # Schedule a background save; avoid forcing Neon sync here
         self.bot.member_data.schedule_save()
